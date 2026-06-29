@@ -1,67 +1,48 @@
 # 🎆 LibertyPOS — Portable Fireworks POS & Inventory App
 
-LibertyPOS is a premium, local-first Point of Sale (POS) and Inventory management application designed specifically for seasonal fireworks sales. Built on **Tauri v2**, **React (TypeScript)**, and **Tailwind CSS**, it features a bundled **SQLite** database that ensures **100% portability** (runs directly off a USB flash drive).
+LibertyPOS is a premium, local-first Point of Sale (POS) and Inventory management application designed specifically for seasonal fireworks sales. It runs entirely off a USB flash drive, requiring no installation or internet connection to operate.
 
 ---
 
-## 💾 Portability Architecture
-* **Dynamic Database Resolution:** The SQLite database (`firework_pos.db`) automatically initializes in the same folder as the executable binary (`std::env::current_exe()`). This allows you to run the app on any Windows 10+ computer straight from a USB stick without local data footprint.
-* **Embedded Assets:** The frontend React UI is completely compiled into static assets and embedded directly inside the compiled binary.
-* **No External Dependencies:** The SQLite engine is bundled inside the Rust compiler target, requiring no database engine setup on the host computer.
+## ✨ Features
+
+* **🇺🇸 Patriotic & High-Contrast Themes:** Optimized for all environments. Switch between **THC Green**, **Midnight Sky** (great for night shifts in the tent), **Patriotic Red/White/Blue**, and a **High Contrast** mode designed for readability in direct sunlight.
+* **💾 100% USB Portability:** The application database (`firework_pos.db`) is stored in the same folder as the app. Simply copy the executable file to a USB drive and plug it into any Windows computer.
+* **🚀 Keyboard Wedge Scanner support:** Scans barcode entries instantly without needing to click into search inputs.
+* **📦 Catalog & Inventory Audit Ledger:** Real-time stock counts, bulk package pricing support, price adjustments, and password-protected manager audits.
+* **🖨️ Thermal Receipt Printing:** Integrated styling designed to print clean 80mm receipts automatically to standard thermal roll printers.
+* **🎆 Celebratory Feedback:** Colorful fireworks confetti animations play on successful transactions.
+* **🔄 Automatic Updates:** The app automatically checks for updates at startup (if connected to the internet) and lets you install them with a single click.
 
 ---
 
-## 🛠️ Tech Stack & Key Features
-* **Backend:** Rust, Tauri v2, SQLite (via `rusqlite` bundled)
-* **Frontend:** React (Vite, TypeScript), Tailwind CSS, Lucide Icons, Canvas Confetti
-* **Design System:** Custom theme options optimized for outdoor/sunlight or night shift visibility:
-  * **THC Mode (Default):** Deep forest greens with emerald borders.
-  * **Midnight Sky:** Dark eye-friendly blue for night shifts at the firework tent.
-  * **Patriotic:** Vibrant 4th of July Red, White, and Blue theme.
-  * **High Contrast:** Pure black-and-white for visibility in bright direct sunlight.
-* **Automated Updates:** Secure, serverless updates verified via Tauri's signatures and hosted directly on GitHub Releases.
-* **Wedged Scanner Interception:** Global keyboard wedging listener catches barcode scanning events seamlessly.
-* **Thermal Printing:** Custom `@media print` CSS layout for printing 80mm thermal receipts directly.
+## 🚀 How to Install & Run (User Walkthrough)
+
+### 1. Download the App
+* Go to the [Releases](https://github.com/japressley8/THCFireworksPOS/releases) page of the repository.
+* Download the standalone executable (`fireworks-pos-app.exe`) or the setup package (`THC_Fireworks_1.0.0_x64-setup.exe`).
+
+### 2. Run Portably from a USB Drive
+1. Insert your USB flash drive into your computer.
+2. Copy the downloaded `fireworks-pos-app.exe` file directly onto the USB drive.
+3. Double-click the executable to launch the app!
+   * *A database file named `firework_pos.db` will automatically be created in the same folder on your USB drive to save your catalog, presets, and sales history.*
 
 ---
 
-## 🚀 Setup & Build Instructions
+## 💻 How to Use the POS Terminal
 
-### 📋 Prerequisites
-1. **Node.js (v20+)**
-2. **Rust & Cargo**
-3. **C++ Build Tools** (Select "Desktop development with C++" in the Visual Studio Installer)
+### 1. The Sales Register
+* **Adding Items:** Point and scan a barcode, or manually select items from the catalog.
+* **Discounts:** Click the discount presets (e.g. Church Member) or type custom percentages/fixed dollar amounts using the on-screen keypad.
+* **Checkout:** Click **Complete Sale** to record the transaction.
+* **Receipts:** Hit **Print Receipt** (shortcut `Ctrl + P`) to print or save a PDF.
 
-### ⚙️ Step 1: Install Dependencies
-To install the frontend and package dependencies, run:
-```bash
-# Add the local Node.js environment to your PATH if running inside the workspace shell:
-$env:PATH="c:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\.node\node-v20.15.0-win-x64;" + $env:PATH
-npm install
-```
-
-### 💻 Step 2: Run in Development Mode
-Launch the live-reload desktop window:
-```bash
-npm run tauri dev
-```
-* **Admin View Password:** `fireworks1776`
-* You can test barcode scanning by typing a code (e.g. `1001`, `1002`) and pressing `Enter` when no inputs are focused.
-
-### 📦 Step 3: Compile the Standalone Executable
-To package the final optimized `.exe` binary:
-```bash
-npm run tauri build
-```
-Once complete, the installer files will be generated in:
-`src-tauri/target/release/bundle/msi/`
-
----
-
-## 🔄 Automatic Update System
-This application is configured to pull update signatures directly from GitHub Releases.
-1. When a release is published, the app fetches `updater.json` from GitHub.
-2. If a new version is detected, a banner slides in asking the user to update.
-3. Clicking **Download & Install** downloads the signed update archive, installs it, and relaunches the application.
-
-*To sign updates, ensure `TAURI_SIGNING_PRIVATE_KEY` is configured in your GitHub repository's Actions Secrets.*
+### 2. The Administrator Panel
+* Click **Admin View** in the top navigation bar.
+* Enter the password: `fireworks1776`
+* From here you can:
+  * Add, edit, or delete items and barcodes.
+  * Adjust current stock levels and unit costs.
+  * View daily and yearly sales summaries.
+  * Download/inspect the historical transaction ledger.

@@ -54,9 +54,9 @@ jobs:
           $version = "${{ github.ref_name }}".TrimStart('v')
           
           # Locate built installer zip file and signature
-          $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*_x64_en-US.msi.zip" -Recurse | Select-Object -First 1
+          $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*nsis.zip" -Recurse | Select-Object -First 1
           if ($null -eq $zipFile) {
-            $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.msi.zip" -Recurse | Select-Object -First 1
+            $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*setup*.zip" -Recurse | Select-Object -First 1
           }
           if ($null -eq $zipFile) {
             $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.zip" -Recurse | Select-Object -First 1
