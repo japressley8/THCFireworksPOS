@@ -1,6 +1,6 @@
 {
   "productName": "THC_Fireworks",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "identifier": "com.church.thcfireworks",
   "build": {
     "beforeDevCommand": "npm run dev",
