@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and Sign Tauri App
+        uses: tauri-apps/tauri-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSPHRASE: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSPHRASE }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'THC Fireworks v__VERSION__'
+          releaseBody: 'Release details for THC Fireworks POS.'
+          releaseDraft: false
+          prerelease: false
+
+      - name: Create Updater JSON
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          
+          # Locate built installer zip file and signature
+          $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*_x64_en-US.msi.zip" -Recurse | Select-Object -First 1
+          if ($null -eq $zipFile) {
+            $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.msi.zip" -Recurse | Select-Object -First 1
+          }
+          if ($null -eq $zipFile) {
+            $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.zip" -Recurse | Select-Object -First 1
+          }
+          
+          $sigFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "$($zipFile.Name).sig" -Recurse | Select-Object -First 1
+          
+          if ($null -eq $zipFile -or $null -eq $sigFile) {
+             Write-Error "Could not locate installer zip or sig file!"
+             exit 1
+          }
+
+          $signature = Get-Content -Path $sigFile.FullName -Raw
+          $signature = $signature.Trim()
+          
+          # Read public key from config or environment
+          $pubkey = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzNEVBRDhGMDU5QTVCRDkKUldUWlc1b0ZqNjFPSTZMNVc5WTlMcFR3bzNsSzBQTC9hUzM0UmRBY211RFpsaVd2K2dhZVI5Tm8K"
+
+          $json = @{
+            version = "${{ github.ref_name }}"
+            notes = "Automated Release for ${{ github.ref_name }}"
+            pubkey = $pubkey
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature
+                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$($zipFile.Name)"
+              }
+            }
+          }
+          
+          $json | ConvertTo-Json -Depth 5 | Out-File -FilePath updater.json -Encoding utf8
+          
+          # Upload updater.json to the release
+          gh release upload ${{ github.ref_name }} updater.json --clobber
