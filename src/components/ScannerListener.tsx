@@ -13,6 +13,11 @@ export const ScannerListener: React.FC<ScannerListenerProps> = ({ onScan, isEnab
     if (!isEnabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // If a modal is open, don't capture globally.
+      if (document.querySelector('.z-50')) {
+        return;
+      }
+
       // If the user is currently typing in an input or textarea, don't capture globally.
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {

@@ -15,7 +15,8 @@ import {
   TrendingUp,
   Palette,
   Package,
-  ArrowUpCircle
+  ArrowUpCircle,
+  AlertTriangle
 } from 'lucide-react';
 import RegisterView from './components/RegisterView';
 import AdminView from './components/AdminView';
@@ -109,6 +110,7 @@ export const App: React.FC = () => {
   // Updater states
   const [updateAvailable, setUpdateAvailable] = useState<any>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+  const [showAdminWarning, setShowAdminWarning] = useState<boolean>(false);
 
   // Themes state loading from localStorage or starters
   const [themes, setThemes] = useState<Theme[]>(() => {
@@ -292,6 +294,50 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* RESTRICTED ACCESS WARNING MODAL */}
+      {showAdminWarning && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-custom-card border border-custom-border rounded-2xl p-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header branding band */}
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-red-600" />
+            
+            <div className="flex items-center gap-3.5 mb-5 mt-2">
+              <div className="p-3 bg-red-500/25 text-red-500 rounded-2xl border border-red-500/30">
+                <AlertTriangle className="h-6 w-6 text-red-500 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-custom-text uppercase tracking-tight">Restricted Access</h3>
+                <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Authorized Staff Only</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-custom-muted leading-relaxed mb-6">
+              This area is restricted to qualified staff only. Proceeding allows access to sensitive inventory records, pricing configurations, and system analytics. Do you wish to proceed?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                id="btn-warn-cancel"
+                onClick={() => setShowAdminWarning(false)}
+                className="flex-1 py-3 bg-custom-input hover:bg-custom-primary/10 border border-custom-border text-custom-text font-bold text-xs rounded-xl transition-all active:scale-95 shadow"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-warn-proceed"
+                onClick={() => {
+                  setShowAdminWarning(false);
+                  setActiveTab('admin');
+                }}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10"
+              >
+                Proceed to Admin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* GLOBAL KEYBOARD SCANNERS INTERCEPTOR */}
       <ScannerListener 
@@ -336,7 +382,13 @@ export const App: React.FC = () => {
           </button>
           <button
             id="btn-nav-admin"
-            onClick={() => setActiveTab('admin')}
+            onClick={() => {
+              if (activeTab === 'register') {
+                setShowAdminWarning(true);
+              } else {
+                setActiveTab('admin');
+              }
+            }}
             className={`px-6 py-3 rounded-xl text-base font-extrabold flex items-center gap-2.5 transition-all active:scale-95 ${
               activeTab === 'admin'
                 ? 'bg-custom-primary text-white shadow-md'

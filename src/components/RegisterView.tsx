@@ -248,6 +248,42 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
     showNotice(`Applied custom discount of ${customDiscountType === 'percentage' ? `${value}%` : `$${value.toFixed(2)}`}`);
   };
 
+  // Listen to physical keyboard events when custom discount keypad modal is active
+  useEffect(() => {
+    if (!showCustomDiscountModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // If the user is currently typing in an input or textarea, don't capture.
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      const key = e.key;
+
+      if (key >= '0' && key <= '9') {
+        handleKeypadPress(key);
+      } else if (key === '.') {
+        handleKeypadPress('.');
+      } else if (key === 'Backspace') {
+        e.preventDefault();
+        setNumpadBuffer(prev => prev.slice(0, -1));
+      } else if (key === 'Escape') {
+        e.preventDefault();
+        setShowCustomDiscountModal(false);
+        setNumpadBuffer('');
+      } else if (key === 'Enter') {
+        e.preventDefault();
+        applyCustomDiscount();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showCustomDiscountModal, numpadBuffer, customDiscountType, subtotal]);
+
   const triggerConfetti = () => {
     const end = Date.now() + (2 * 1000);
     const colors = ['#dc2626', '#ffffff', '#3b82f6', '#fbbf24']; // Red, White, Blue, Gold
