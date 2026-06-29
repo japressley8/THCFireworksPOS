@@ -14,7 +14,8 @@ import {
   BookOpen,
   TrendingUp,
   Palette,
-  Package
+  Package,
+  ArrowUpCircle
 } from 'lucide-react';
 import RegisterView from './components/RegisterView';
 import AdminView from './components/AdminView';
@@ -109,6 +110,7 @@ export const App: React.FC = () => {
   const [updateAvailable, setUpdateAvailable] = useState<any>(null);
   const [updateProgress, setUpdateProgress] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
   // Themes state loading from localStorage or starters
   const [themes, setThemes] = useState<Theme[]>(() => {
@@ -162,6 +164,7 @@ export const App: React.FC = () => {
         const update = await check();
         if (update) {
           setUpdateAvailable(update);
+          setShowUpdateModal(true);
         }
       } catch (e) {
         console.warn('Updater plugin not available or dev context:', e);
@@ -249,56 +252,87 @@ export const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-screen bg-custom-bg text-custom-text overflow-hidden font-sans" style={themeStyles}>
       
-      {/* UPDATE BANNER */}
-      {updateAvailable && (
-        <div className="bg-custom-primary/20 border-b border-custom-primary/30 px-6 py-3 flex items-center justify-between text-sm shrink-0 z-40 select-none animate-in fade-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-3">
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-custom-accent opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-custom-accent"></span>
-            </span>
-            <span className="font-bold text-custom-text">
-              New Update Available: <span className="text-custom-accent font-mono">v{updateAvailable.version}</span>
-            </span>
-            {updateAvailable.body && (
-              <span className="hidden md:inline text-xs text-custom-muted">
-                — {updateAvailable.body}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {isUpdating ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-custom-muted font-bold font-mono animate-pulse">{updateProgress}</span>
-                <div className="w-24 h-1.5 bg-black/40 rounded-full overflow-hidden border border-custom-border">
-                  <div 
-                    className="h-full bg-custom-accent transition-all duration-300" 
-                    style={{ 
-                      width: updateProgress.includes('%') 
-                        ? `${updateProgress.match(/\d+/)?.[0] || 0}%` 
-                        : '50%' 
-                    }} 
-                  />
-                </div>
+      {/* UPDATE MODAL POPUP */}
+      {showUpdateModal && updateAvailable && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-custom-card border border-custom-border rounded-2xl p-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header branding band */}
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-600 via-white to-blue-600" />
+            
+            {/* Close / Remind Later top button */}
+            <button
+              id="btn-update-close"
+              onClick={() => setShowUpdateModal(false)}
+              disabled={isUpdating}
+              className="absolute top-4 right-4 p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-muted hover:text-custom-text rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-3.5 mb-5 mt-2">
+              <div className="p-3 bg-custom-primary/25 text-custom-primary rounded-2xl border border-custom-primary/30">
+                <ArrowUpCircle className="h-6 w-6 text-custom-accent animate-bounce" />
               </div>
-            ) : (
-              <>
-                <button
-                  id="btn-install-update"
-                  onClick={handleInstallUpdate}
-                  className="px-4 py-1.5 bg-custom-primary hover:bg-custom-primary-hover text-white text-xs font-bold rounded-lg transition-all active:scale-95 shadow"
-                >
-                  Download & Install
-                </button>
-                <button
-                  id="btn-dismiss-update-banner"
-                  onClick={() => setUpdateAvailable(null)}
-                  className="p-1.5 hover:bg-white/10 rounded-lg text-custom-muted hover:text-custom-text transition-all"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </>
-            )}
+              <div>
+                <h3 className="text-lg font-black text-custom-text uppercase tracking-tight">Software Update</h3>
+                <p className="text-[10px] text-custom-muted font-bold uppercase tracking-wider">New Release Found on GitHub</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-custom-input/40 rounded-xl p-4 border border-custom-border/30">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[10px] font-bold text-custom-muted uppercase tracking-wider">Target Version</span>
+                  <span className="text-xs font-bold text-custom-accent font-mono bg-custom-primary/25 px-2 py-0.5 rounded border border-custom-primary/30">
+                    v{updateAvailable.version}
+                  </span>
+                </div>
+                {updateAvailable.body && (
+                  <div>
+                    <span className="text-[9px] font-extrabold text-custom-muted uppercase tracking-wider block mb-1.5">Release Notes:</span>
+                    <p className="text-xs text-custom-text leading-relaxed bg-black/20 rounded-lg p-3 max-h-32 overflow-y-auto font-sans border border-custom-border/20 whitespace-pre-line">
+                      {updateAvailable.body}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {isUpdating ? (
+                <div className="space-y-2.5 pt-2">
+                  <div className="flex justify-between items-center text-xs font-bold">
+                    <span className="text-custom-muted animate-pulse">{updateProgress}</span>
+                    <span className="text-custom-accent font-mono">{updateProgress.includes('%') ? updateProgress.match(/\d+/)?.[0] + '%' : ''}</span>
+                  </div>
+                  <div className="w-full h-2.5 bg-black/40 rounded-full overflow-hidden border border-custom-border relative">
+                    <div 
+                      className="h-full bg-gradient-to-r from-custom-primary to-custom-accent transition-all duration-300" 
+                      style={{ 
+                        width: updateProgress.includes('%') 
+                          ? `${updateProgress.match(/\d+/)?.[0] || 0}%` 
+                          : '50%' 
+                      }} 
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3 pt-2">
+                  <button
+                    id="btn-update-remind-later"
+                    onClick={() => setShowUpdateModal(false)}
+                    className="flex-1 py-3 bg-custom-input hover:bg-custom-primary/10 border border-custom-border text-custom-text font-bold text-xs rounded-xl transition-all active:scale-95 shadow"
+                  >
+                    Remind Me Later
+                  </button>
+                  <button
+                    id="btn-update-execute"
+                    onClick={handleInstallUpdate}
+                    className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10"
+                  >
+                    Update Now
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

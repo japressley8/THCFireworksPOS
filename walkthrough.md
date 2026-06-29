@@ -134,3 +134,50 @@ Located in [src/components/__tests__/](file:///c:/Users/Jacobs-Desktop/OneDrive/
   npm run test
   ```
 
+---
+
+## 🛠️ GitHub Repository & Automatic Update System
+
+We have set up a localized Git repository and integrated a secure, serverless update checking hook using GitHub Releases.
+
+### 🔄 How the Auto-Updater Works
+1. **GitHub Release Assets**: Each compilation build pushes installer assets (e.g. `.msi` installers) and an `updater.json` signature file.
+2. **App Update Checks**: The desktop application requests the latest signatures from `https://github.com/[YOUR_USER]/[YOUR_REPO]/releases/latest/download/updater.json` at startup.
+3. **Banner Notification**: If a new release version is published (e.g. `v1.0.1`), a banner automatically slides in at the top of the interface displaying changelog descriptions.
+4. **Direct Download**: Clicking **Download & Install** fetches the binary, shows real-time progress, validates signatures, and launches `relaunch()` to reload the app with the new version.
+
+### 📝 Next Deployment Steps for You (GitHub Connection)
+
+To connect this local workspace to your GitHub repository and build automatic releases:
+1. **Add Remote & Push**:
+   Create a repository on your GitHub account, then run:
+   ```bash
+   git remote add origin https://github.com/YOUR_GITHUB_USER/YOUR_REPO_NAME.git
+   git branch -M main
+   git push -u origin main
+   ```
+2. **Generate Tauri Signing Keys**:
+   To secure application updates, generate a private/public keypair by running:
+   ```bash
+   npx tauri signer generate
+   ```
+   * Save the generated **Private Key** in your GitHub repository's secrets:
+     `GitHub Repo Settings -> Secrets and variables -> Actions -> New repository secret`
+     * Name: `TAURI_SIGNING_PRIVATE_KEY`
+     * Value: *[Copy the private key contents]*
+   * Copy the generated **Public Key** and paste it into [tauri.conf.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/FireworksScanApp/src-tauri/tauri.conf.json) under `pubkey`:
+     ```json
+     "updater": {
+       "pubkey": "YOUR_GENERATED_PUBLIC_KEY"
+     }
+     ```
+3. **Push Version Tag to Build**:
+   To build a release installer, update your `version` in [package.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/FireworksScanApp/package.json) and [tauri.conf.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/FireworksScanApp/src-tauri/tauri.conf.json) to `1.0.1`, then tag and push:
+   ```bash
+   git add .
+   git commit -m "Bump version for release"
+   git tag v1.0.1
+   git push origin main --tags
+   ```
+   The GitHub Actions workflow [release.yml](file:///.github/workflows/release.yml) will trigger automatically, compile the MSI installer on a Windows runner, and host it as a GitHub release!
+
