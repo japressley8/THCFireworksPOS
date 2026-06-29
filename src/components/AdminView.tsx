@@ -228,23 +228,78 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const fileName = file.name.toLowerCase();
+    const isXlsx = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
+    reader.onload = async (event) => {
       try {
-        const itemsList = parseCSVText(text);
+        let itemsList = [];
+        if (isXlsx) {
+          const XLSX = await import('xlsx');
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+          itemsList = parseXLSXRows(rows);
+        } else {
+          const text = event.target?.result as string;
+          itemsList = parseCSVText(text);
+        }
+
         if (itemsList.length === 0) {
-          triggerNotice('No items parsed from CSV.', 'error');
+          triggerNotice('No items parsed from the file.', 'error');
         } else {
           setParsedCSVItems(itemsList);
-          triggerNotice(`Successfully parsed ${itemsList.length} items from CSV!`, 'success');
+          triggerNotice(`Successfully parsed ${itemsList.length} items!`, 'success');
         }
       } catch (err: any) {
-        triggerNotice(err.message || 'Failed to parse CSV.', 'error');
+        triggerNotice(err.message || 'Failed to parse file.', 'error');
       }
     };
-    reader.readAsText(file);
+
+    if (isXlsx) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
     e.target.value = ''; // Reset file input
+  };
+
+  const parseXLSXRows = (rows: any[][]) => {
+    if (rows.length === 0) return [];
+    
+    // Read headers from row 0
+    const headers = rows[0].map(h => String(h || '').trim().toUpperCase());
+    
+    const descIdx = headers.findIndex(h => h.includes('DESCRIPTION') || h.includes('NAME'));
+    const upcIdx = headers.findIndex(h => h.includes('UPC') || h.includes('BARCODE'));
+    const priceIdx = headers.findIndex(h => h.includes('RETAIL') || h.includes('PRICE'));
+    
+    if (descIdx === -1 || upcIdx === -1 || priceIdx === -1) {
+      throw new Error("Missing required columns. The sheet must have headers for 'DESCRIPTION', 'UPC', and 'RETAIL'.");
+    }
+    
+    const importedItems = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+      
+      const name = String(row[descIdx] || '').trim();
+      const barcode = String(row[upcIdx] || '').trim();
+      const priceStr = String(row[priceIdx] || '').trim().replace(/[^0-9.]/g, '');
+      const price = parseFloat(priceStr);
+      
+      if (name && barcode && !isNaN(price)) {
+        importedItems.push({
+          barcode,
+          name,
+          price
+        });
+      }
+    }
+    return importedItems;
   };
 
   const parseCSVText = (text: string) => {
@@ -751,25 +806,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </form>
               </div>
 
-              {/* CSV Import Wizard Card */}
+              {/* CSV / Excel Import Wizard Card */}
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg flex flex-col space-y-4 bg-custom-card/50">
                 <h3 className="text-lg font-bold text-custom-text flex items-center gap-2 pb-2 border-b border-custom-border">
-                  <Upload className="h-5 w-5 text-custom-accent" /> CSV Inventory Import Wizard
+                  <Upload className="h-5 w-5 text-custom-accent" /> CSV / Excel Inventory Import Wizard
                 </h3>
 
                 <div className="space-y-4.5">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
-                      Select Inventory CSV File
+                      Select Inventory CSV or Excel File
                     </label>
                     <input
                       type="file"
-                      accept=".csv"
+                      accept=".csv, .xlsx, .xls"
                       onChange={handleCSVFileSelect}
                       className="w-full text-xs text-custom-text file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-custom-primary/20 file:text-custom-primary hover:file:bg-custom-primary/30 file:cursor-pointer"
                     />
                     <p className="text-[10px] text-custom-muted mt-1.5">
-                      Expects headers: <code className="font-mono text-custom-accent">DESCRIPTION</code>, <code className="font-mono text-custom-accent">UPC</code>, <code className="font-mono text-custom-accent">Retail</code>.
+                      Expects headers: <code className="font-mono text-custom-accent">DESCRIPTION</code>, <code className="font-mono text-custom-accent">UPC</code>, and <code className="font-mono text-custom-accent">RETAIL</code> (or <code className="font-mono text-custom-accent">PRICE</code>).
                     </p>
                   </div>
 
