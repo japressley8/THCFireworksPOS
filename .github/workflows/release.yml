@@ -34,7 +34,7 @@ jobs:
         run: npm ci
 
       - name: Build and Sign Tauri App
-        uses: tauri-apps/tauri-action@v2
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -91,3 +91,7 @@ jobs:
           
           # Upload updater.json to the release
           gh release upload ${{ github.ref_name }} updater.json --clobber
+          
+          # Copy and upload the raw portable standalone exe to the release
+          Copy-Item -Path src-tauri/target/release/fireworks-pos-app.exe -Destination src-tauri/target/release/THC_Fireworks_Portable.exe
+          gh release upload ${{ github.ref_name }} src-tauri/target/release/THC_Fireworks_Portable.exe --clobber
