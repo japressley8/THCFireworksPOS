@@ -849,7 +849,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                   <p className="text-[10px] text-zinc-600 mt-1">Thousand Hills Church Booth</p>
                   <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
                   <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
-                  <p className="text-[9px] text-left mt-2">Ticket #: {lastSaleData.id}</p>
+                  <p className="text-[9px] text-left mt-2">Sale #: {lastSaleData.id}</p>
                   <p className="text-[9px] text-left">Date: {lastSaleData.timestamp}</p>
                 </div>
 
@@ -906,7 +906,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                 <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
                 <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>
                 <div style={{ textAlign: 'left', marginTop: '5px', fontSize: '9px' }}>
-                  <p style={{ margin: '0' }}>Ticket #: {lastSaleData.id}</p>
+                  <p style={{ margin: '0' }}>Sale #: {lastSaleData.id}</p>
                   <p style={{ margin: '0' }}>Date: {lastSaleData.timestamp}</p>
                 </div>
               </div>

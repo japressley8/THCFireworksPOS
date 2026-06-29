@@ -34,6 +34,7 @@ interface AdminViewProps {
   onThresholdChange: (val: number) => void;
   totalStockCostSpent: number;
   onTotalCostChange: (val: number) => void;
+  onTriggerUpdateCheck: () => Promise<boolean>;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
@@ -47,7 +48,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   lowStockThreshold,
   onThresholdChange,
   totalStockCostSpent,
-  onTotalCostChange
+  onTotalCostChange,
+  onTriggerUpdateCheck
 }) => {
   // Security
   const [isAdminUnlocked] = useState<boolean>(true);
@@ -111,6 +113,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editItemBulkPrice, setEditItemBulkPrice] = useState<string>('');
   const [editItemBulkBarcode, setEditItemBulkBarcode] = useState<string>('');
   const [editItemBulkQuantity, setEditItemBulkQuantity] = useState<string>('');
+
+  // App Update states
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const hasUpdate = await onTriggerUpdateCheck();
+      if (!hasUpdate) {
+        alert('You are running the latest version of THC Fireworks POS!');
+      }
+    } catch (e) {
+      alert('Update check failed: ' + e);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   // Admin configurations & trends
   const [priceHistory, setPriceHistory] = useState<any[]>([]);
@@ -672,14 +691,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
         {subTab === 'inventory' && (
           <div className="h-full flex flex-col xl:flex-row gap-6 min-h-0">
             {/* Form Column */}
-            <div className="w-full xl:w-96 shrink-0 flex flex-col gap-6 overflow-y-auto pr-1">
+            <div className="w-full xl:w-[480px] shrink-0 flex flex-col gap-6 overflow-y-auto pr-1">
               {/* Catalog New Product */}
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg flex flex-col space-y-4">
                 <h3 className="text-lg font-bold text-custom-text flex items-center gap-2 pb-2 border-b border-custom-border">
                   <PlusCircle className="h-5 w-5 text-custom-accent" /> Catalog New Product
                 </h3>
 
-                <form onSubmit={handleAddItem} className="space-y-4.5">
+                <form onSubmit={handleAddItem} className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Barcode Scan / Manual Code</label>
                     <div className="relative">
@@ -789,7 +808,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <button 
                     id="btn-admin-add-item-submit"
                     type="submit"
-                    className="w-full py-4 bg-custom-primary hover:bg-custom-primary-hover active:scale-97 text-white font-extrabold text-base rounded-xl transition-all shadow border border-custom-border"
+                    className="w-full py-4 bg-custom-primary hover:bg-custom-primary-hover active:scale-97 text-white font-extrabold text-base rounded-xl transition-all shadow border border-custom-border mt-6"
                   >
                     Add Product to Catalog
                   </button>
@@ -909,7 +928,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   className="p-3 bg-custom-input hover:bg-custom-input/80 border border-custom-border text-custom-muted hover:text-custom-text rounded-xl transition-all active:scale-90"
                   title="Reload inventory list"
                 >
-                  <RefreshCw className="h-4.5 w-4.5" />
+                  <RefreshCw className="h-4 w-4" />
                 </button>
               </div>
 
@@ -939,8 +958,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         const isLowStock = item.stock_quantity !== null && item.stock_quantity <= lowStockThreshold;
                         return (
                           <tr key={item.id} className="hover:bg-custom-primary/10 text-custom-text border-b border-custom-border/30 align-top">
-                            <td className="py-4.5 px-6 font-mono text-xs text-custom-muted">{item.barcode}</td>
-                            <td className="py-4.5 px-6 font-bold text-custom-text text-base">
+                            <td className="py-4 px-6 font-mono text-xs text-custom-muted">{item.barcode}</td>
+                            <td className="py-4 px-6 font-bold text-custom-text text-base">
                               {isEditing ? (
                                 <div className="space-y-2.5 mt-2 p-3 bg-custom-input border border-custom-border rounded-xl text-xs font-semibold max-w-sm">
                                   <div>
@@ -1015,7 +1034,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </td>
                             
                             {/* Price field */}
-                            <td className="py-4.5 px-6 text-right font-mono text-base text-custom-accent">
+                            <td className="py-4 px-6 text-right font-mono text-base text-custom-accent">
                               {isEditing ? (
                                 <input 
                                   id={`admin-edit-price-${item.id}`}
@@ -1031,7 +1050,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </td>
 
                             {/* Stock field */}
-                            <td className="py-4.5 px-6 text-right font-mono text-base">
+                            <td className="py-4 px-6 text-right font-mono text-base">
                               {isEditing ? (
                                 <input 
                                   id={`admin-edit-stock-${item.id}`}
@@ -1052,7 +1071,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </td>
 
                             {/* Action Operations */}
-                            <td className="py-4.5 px-6 text-center select-none">
+                            <td className="py-4 px-6 text-center select-none">
                               {isEditing ? (
                                 <div className="flex justify-center gap-1.5">
                                   <button
@@ -1061,7 +1080,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     className="p-2 bg-emerald-900/30 border border-emerald-700 text-emerald-400 hover:text-white rounded-lg transition-all"
                                     title="Save Changes"
                                   >
-                                    <Check className="h-4.5 w-4.5" />
+                                    <Check className="h-4 w-4" />
                                   </button>
                                   <button
                                     id={`btn-cancel-edit-${item.id}`}
@@ -1069,7 +1088,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     className="p-2 bg-custom-input border border-custom-border text-custom-muted hover:text-custom-text rounded-lg transition-all"
                                     title="Cancel"
                                   >
-                                    <X className="h-4.5 w-4.5" />
+                                    <X className="h-4 w-4" />
                                   </button>
                                 </div>
                               ) : (
@@ -1243,7 +1262,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="flex items-center gap-2">
                 <span className="font-bold text-custom-text text-base">Historical Transaction Ledger</span>
                 <span className="text-xs bg-custom-input text-custom-accent border border-custom-border px-2.5 py-0.5 rounded-full font-bold">
-                  Total Ticket Count: {sales.length}
+                  Total Sales Count: {sales.length}
                 </span>
               </div>
               <button 
@@ -1260,7 +1279,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="bg-custom-input text-custom-muted border-b border-custom-border uppercase text-xs font-extrabold select-none">
-                    <th className="py-4 px-6 w-20">Ticket</th>
+                    <th className="py-4 px-6 w-20">Sale ID</th>
                     <th className="py-4 px-6">Timestamp</th>
                     <th className="py-4 px-6 text-right">Subtotal</th>
                     <th className="py-4 px-6 text-right">Discounts</th>
@@ -1376,7 +1395,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <button
                       id="btn-analytics-toggle-yearly"
                       onClick={() => setAnalyticsMode('yearly')}
-                      className={`px-4.5 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 ${
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 ${
                         analyticsMode === 'yearly'
                           ? 'bg-custom-primary text-white shadow-md'
                           : 'text-custom-muted hover:text-custom-text'
@@ -1387,7 +1406,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <button
                       id="btn-analytics-toggle-daily"
                       onClick={() => setAnalyticsMode('daily')}
-                      className={`px-4.5 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 ${
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 ${
                         analyticsMode === 'daily'
                           ? 'bg-custom-primary text-white shadow-md'
                           : 'text-custom-muted hover:text-custom-text'
@@ -1413,12 +1432,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <thead>
                           <tr className="bg-black/40 text-custom-muted border-b border-custom-border uppercase tracking-wider text-[10px]">
                             <th className="py-3 px-4">Sales Year</th>
-                            <th className="py-3 px-4 text-right">Tickets Issued</th>
+                            <th className="py-3 px-4 text-right">Sales Completed</th>
                             <th className="py-3 px-4 text-right">Subtotal Revenue</th>
                             <th className="py-3 px-4 text-right">Discounts Applied</th>
                             <th className="py-3 px-4 text-right">Tax Collected</th>
                             <th className="py-3 px-4 text-right">Grand Total Sales</th>
-                            <th className="py-3 px-4 text-right">Avg Ticket Size</th>
+                            <th className="py-3 px-4 text-right">Avg Sale Size</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-custom-border text-custom-text">
@@ -1446,9 +1465,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <thead>
                           <tr className="bg-black/40 text-custom-muted border-b border-custom-border uppercase tracking-wider text-[10px]">
                             <th className="py-3 px-4">Sales Date</th>
-                            <th className="py-3 px-4 text-right">Tickets Issued</th>
+                            <th className="py-3 px-4 text-right">Sales Completed</th>
                             <th className="py-3 px-4 text-right">Grand Total Sales</th>
-                            <th className="py-3 px-4 text-right">Avg Ticket Size</th>
+                            <th className="py-3 px-4 text-right">Avg Sale Size</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-custom-border text-custom-text">
@@ -1549,7 +1568,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               {/* Settings, Cost & Profit Calculations */}
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg space-y-5">
                 <h3 className="text-base font-bold text-custom-text flex items-center gap-2 border-b border-custom-border pb-3">
-                  <Settings className="h-4.5 w-4.5 text-custom-accent" /> Ledger Configuration & Profit margins
+                  <Settings className="h-4 w-4 text-custom-accent" /> Ledger Configuration & Profit margins
                 </h3>
                 
                 <div className="space-y-4">
@@ -1582,6 +1601,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       />
                       <span className="text-[10px] text-custom-muted/80 mt-1 block">Leave 0 to disable profit tracking.</span>
                     </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-custom-border/20 flex items-center justify-between gap-4 mt-2">
+                    <div>
+                      <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">App Updates</span>
+                      <span className="text-[10px] text-custom-muted mt-0.5 block">Check for newer portable software versions on GitHub.</span>
+                    </div>
+                    <button
+                      id="btn-admin-check-update"
+                      onClick={handleCheckUpdate}
+                      disabled={isCheckingUpdate}
+                      className="px-4 py-2 bg-custom-primary hover:bg-custom-primary-hover active:scale-95 text-white font-extrabold text-xs rounded-lg transition-all shadow disabled:opacity-50"
+                    >
+                      {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
+                    </button>
                   </div>
 
                   {/* Profit Margins breakdown */}

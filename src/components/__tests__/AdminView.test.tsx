@@ -58,6 +58,7 @@ describe('AdminView Component', () => {
     onThresholdChange: vi.fn(),
     totalStockCostSpent: 0,
     onTotalCostChange: vi.fn(),
+    onTriggerUpdateCheck: vi.fn(),
   };
 
   beforeEach(() => {
@@ -155,7 +156,7 @@ describe('AdminView Component', () => {
     fireEvent.click(screen.getByText('Sales Ledger'));
 
     await waitFor(() => {
-      expect(screen.getByText('Ticket')).toBeInTheDocument();
+      expect(screen.getByText('Sale ID')).toBeInTheDocument();
       expect(screen.getByText(/#10/)).toBeInTheDocument();
       expect(screen.getAllByText('$9.99').length).toBeGreaterThan(0);
     });

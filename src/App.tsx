@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { check } from '@tauri-apps/plugin-updater';
 import { 
   DollarSign, 
   Settings, 
@@ -217,7 +218,6 @@ export const App: React.FC = () => {
   useEffect(() => {
     const checkForUpdates = async () => {
       try {
-        const { check } = await import('@tauri-apps/plugin-updater');
         const update = await check();
         if (update) {
           setUpdateAvailable(update);
@@ -520,6 +520,20 @@ export const App: React.FC = () => {
             onThresholdChange={handleThresholdChange}
             totalStockCostSpent={totalStockCostSpent}
             onTotalCostChange={handleTotalCostChange}
+            onTriggerUpdateCheck={async () => {
+              try {
+                const update = await check();
+                if (update) {
+                  setUpdateAvailable(update);
+                  setShowUpdateModal(true);
+                  return true;
+                }
+                return false;
+              } catch (e) {
+                console.error(e);
+                throw e;
+              }
+            }}
           />
         )}
       </main>

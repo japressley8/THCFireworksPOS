@@ -79,7 +79,7 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $signature
-                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$($installerFile.Name)"
+                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/THC_Fireworks_Portable.exe"
               }
             }
           }
@@ -92,3 +92,6 @@ jobs:
           # Copy and upload the raw portable standalone exe to the release
           Copy-Item -Path src-tauri/target/release/fireworks-pos-app.exe -Destination src-tauri/target/release/THC_Fireworks_Portable.exe
           gh release upload ${{ github.ref_name }} src-tauri/target/release/THC_Fireworks_Portable.exe --clobber
+          
+          # Delete the NSIS setup installer asset from the release page to avoid confusion and SmartScreen installer warnings
+          gh release delete-asset ${{ github.ref_name }} "$($installerFile.Name)" -y
