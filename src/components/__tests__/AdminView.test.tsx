@@ -205,8 +205,8 @@ describe('AdminView Component', () => {
       expect(screen.getByText('Manager Admin Console')).toBeInTheDocument();
     });
 
-    // Click Themes sub-tab
-    fireEvent.click(screen.getByText('Themes'));
+    // Click Settings sub-tab
+    fireEvent.click(screen.getByText('Settings'));
 
     await waitFor(() => {
       expect(screen.getByText('Available Themes')).toBeInTheDocument();

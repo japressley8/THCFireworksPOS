@@ -24,12 +24,6 @@ export default defineConfig({
     // don't minify for debug builds unless required
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     // produce sourcemaps for debug builds
-    sourcemap: !!process.env.TAURI_ENV_DEBUG,
-    rollupOptions: {
-      external: [
-        "@tauri-apps/plugin-updater",
-        "@tauri-apps/plugin-process"
-      ]
-    }
+    sourcemap: !!process.env.TAURI_ENV_DEBUG
   },
 });

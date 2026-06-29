@@ -55,7 +55,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isAdminUnlocked] = useState<boolean>(true);
 
   // Active sub-tab
-  const [subTab, setSubTab] = useState<'inventory' | 'discounts' | 'sales' | 'analytics' | 'themes'>('inventory');
+  const [subTab, setSubTab] = useState<'inventory' | 'discounts' | 'sales' | 'analytics' | 'settings'>('inventory');
 
   // Analytics states
   const [analyticsMode, setAnalyticsMode] = useState<'yearly' | 'daily'>('yearly');
@@ -671,15 +671,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <TrendingUp className="h-4 w-4" /> Analytics
           </button>
           <button
-            id="btn-admin-tab-themes"
-            onClick={() => setSubTab('themes')}
+            id="btn-admin-tab-settings"
+            onClick={() => setSubTab('settings')}
             className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all ${
-              subTab === 'themes' 
+              subTab === 'settings' 
                 ? 'bg-custom-primary text-white shadow-lg' 
                 : 'text-custom-muted hover:text-custom-text'
             }`}
           >
-            <Palette className="h-4 w-4" /> Themes
+            <Settings className="h-4 w-4" /> Settings
           </button>
         </div>
       </div>
@@ -1376,6 +1376,39 @@ export const AdminView: React.FC<AdminViewProps> = ({
         {/* SUB-TAB D: SALES ANALYTICS (YoY COMPARISON & DAILY SUMMARY) */}
         {subTab === 'analytics' && (
           <div className="h-full overflow-y-auto pr-1 pb-6 space-y-6 min-h-0 select-none">
+            
+            {/* Profit Calculations Summary Card */}
+            <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg">
+              <h3 className="text-base font-bold text-custom-text flex items-center gap-2 border-b border-custom-border pb-3 mb-4">
+                <TrendingUp className="h-4 w-4 text-custom-accent" /> Profit Calculations
+              </h3>
+              {(() => {
+                const grandTotalRevenue = yearlySummaries.reduce((sum, s) => sum + s.total_sales, 0);
+                const appliedCost = totalStockCostSpent;
+                const profit = grandTotalRevenue - appliedCost;
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-custom-input/40 border border-custom-border rounded-xl p-4 text-center">
+                      <span className="block text-xs text-custom-muted uppercase font-bold">Total Sales Revenue</span>
+                      <span className="block font-mono text-xl font-bold text-custom-accent mt-1">${grandTotalRevenue.toFixed(2)}</span>
+                    </div>
+                    <div className="bg-custom-input/40 border border-custom-border rounded-xl p-4 text-center">
+                      <span className="block text-xs text-custom-muted uppercase font-bold">Total Stock Expenses</span>
+                      <span className="block font-mono text-xl font-bold text-red-400 mt-1">
+                        ${appliedCost.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="bg-custom-input/40 border border-custom-border rounded-xl p-4 text-center">
+                      <span className="block text-xs text-custom-muted uppercase font-bold">Net Booth Profit</span>
+                      <span className={`block font-mono text-xl font-bold mt-1 ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        ${profit.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* Top Revenue Summary Block */}
             <div className="flex flex-col xl:flex-row gap-6">
               {/* Analytics Table Panel */}
@@ -1563,44 +1596,101 @@ export const AdminView: React.FC<AdminViewProps> = ({
               )}
             </div>
 
-            {/* Bottom Configuration & Price Tracking Panel */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {/* Settings, Cost & Profit Calculations */}
+            {/* Price Changes Tracker Pivot */}
+            <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg space-y-4 mt-6">
+              <h3 className="text-base font-bold text-custom-text flex items-center gap-2 border-b border-custom-border pb-3">
+                <TrendingUp className="h-4.5 w-4.5 text-custom-accent" /> Year-to-Year Retail Price Tracker
+              </h3>
+              {priceHistory.length === 0 ? (
+                <div className="text-center py-10 text-xs text-custom-muted font-medium">No price change logs found. Adjust catalog items price to record.</div>
+              ) : (() => {
+                const yearsSet = new Set<string>();
+                const itemPriceMap = new Map<string, { [year: string]: number }>();
+
+                priceHistory.forEach(entry => {
+                  yearsSet.add(entry.year);
+                  if (!itemPriceMap.has(entry.item_name)) {
+                    itemPriceMap.set(entry.item_name, {});
+                  }
+                  itemPriceMap.get(entry.item_name)![entry.year] = entry.price;
+                });
+
+                const sortedYears = Array.from(yearsSet).sort();
+
+                return (
+                  <div className="overflow-auto max-h-52 border border-custom-border rounded-xl bg-black/10">
+                    <table className="w-full text-left text-xs font-semibold">
+                      <thead>
+                        <tr className="bg-custom-input text-custom-muted uppercase tracking-wider text-[9px] border-b border-custom-border">
+                          <th className="py-2.5 px-4 font-extrabold">Product Title</th>
+                          {sortedYears.map(yr => (
+                            <th key={yr} className="py-2.5 px-4 text-right font-extrabold">{yr} Price</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-custom-border/40 text-custom-text">
+                        {Array.from(itemPriceMap.entries()).map(([name, priceByYear]) => (
+                          <tr key={name} className="hover:bg-white/5 transition-colors">
+                            <td className="py-2.5 px-4 font-bold text-custom-text truncate max-w-[150px]">{name}</td>
+                            {sortedYears.map(yr => (
+                              <td key={yr} className="py-2.5 px-4 text-right font-mono text-custom-accent font-bold">
+                                {priceByYear[yr] !== undefined ? `$${priceByYear[yr].toFixed(2)}` : '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+          </div>
+        )}
+
+        {/* SUB-TAB E: SETTINGS & THEMES CONFIGURATION PANEL */}
+        {subTab === 'settings' && (
+          <div className="h-full flex flex-col xl:flex-row gap-6 min-h-0 overflow-y-auto pb-6 pr-1">
+            
+            {/* Left Column: General Settings & Updates */}
+            <div className="w-full xl:w-96 shrink-0 flex flex-col gap-6">
+              
+              {/* Configuration panel */}
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg space-y-5">
                 <h3 className="text-base font-bold text-custom-text flex items-center gap-2 border-b border-custom-border pb-3">
-                  <Settings className="h-4 w-4 text-custom-accent" /> Ledger Configuration & Profit margins
+                  <Settings className="h-4 w-4 text-custom-accent" /> App Configuration
                 </h3>
                 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
-                        Low Stock Alert Threshold
-                      </label>
-                      <input 
-                        type="number"
-                        min="0"
-                        value={lowStockThreshold}
-                        onChange={e => handleThresholdChange(parseInt(e.target.value, 10) || 0)}
-                        className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm"
-                      />
-                      <span className="text-[10px] text-custom-muted/80 mt-1 block">Trigger alert notices at volunteer checkouts.</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
-                        Total Stock Cost Spent ($)
-                      </label>
-                      <input 
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Manual cost override"
-                        value={totalStockCostSpent || ''}
-                        onChange={e => handleTotalCostChange(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm"
-                      />
-                      <span className="text-[10px] text-custom-muted/80 mt-1 block">Leave 0 to disable profit tracking.</span>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
+                      Low Stock Alert Threshold
+                    </label>
+                    <input 
+                      type="number"
+                      min="0"
+                      value={lowStockThreshold}
+                      onChange={e => handleThresholdChange(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm"
+                    />
+                    <span className="text-[10px] text-custom-muted/80 mt-1 block">Trigger alert notices at volunteer checkouts.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
+                      Total Stock Cost Spent ($)
+                    </label>
+                    <input 
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Manual cost override"
+                      value={totalStockCostSpent || ''}
+                      onChange={e => handleTotalCostChange(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm"
+                    />
+                    <span className="text-[10px] text-custom-muted/80 mt-1 block">Leave 0 to disable profit tracking.</span>
                   </div>
 
                   <div className="pt-4 border-t border-custom-border/20 flex items-center justify-between gap-4 mt-2">
@@ -1612,99 +1702,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       id="btn-admin-check-update"
                       onClick={handleCheckUpdate}
                       disabled={isCheckingUpdate}
-                      className="px-4 py-2 bg-custom-primary hover:bg-custom-primary-hover active:scale-95 text-white font-extrabold text-xs rounded-lg transition-all shadow disabled:opacity-50"
+                      className="px-4 py-2 bg-custom-primary hover:bg-custom-primary-hover active:scale-95 text-white font-extrabold text-xs rounded-lg transition-all shadow disabled:opacity-50 shrink-0"
                     >
                       {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
                     </button>
                   </div>
-
-                  {/* Profit Margins breakdown */}
-                  {(() => {
-                    const grandTotalRevenue = yearlySummaries.reduce((sum, s) => sum + s.total_sales, 0);
-                    const appliedCost = totalStockCostSpent;
-                    const profit = grandTotalRevenue - appliedCost;
-                    return (
-                      <div className="bg-custom-input/40 border border-custom-border rounded-xl p-4.5 grid grid-cols-3 gap-3 text-center">
-                        <div>
-                          <span className="block text-[10px] text-custom-muted uppercase font-bold">Total Sales</span>
-                          <span className="block font-mono text-base font-bold text-custom-accent mt-0.5">${grandTotalRevenue.toFixed(2)}</span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] text-custom-muted uppercase font-bold">Stock Expenses</span>
-                          <span className="block font-mono text-base font-bold text-red-400 mt-0.5">
-                            ${appliedCost.toFixed(2)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] text-custom-muted uppercase font-bold">Net Profit</span>
-                          <span className={`block font-mono text-base font-bold mt-0.5 ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            ${profit.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
                 </div>
-              </div>
-
-              {/* Price Changes Tracker Pivot */}
-              <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg space-y-4">
-                <h3 className="text-base font-bold text-custom-text flex items-center gap-2 border-b border-custom-border pb-3">
-                  <TrendingUp className="h-4.5 w-4.5 text-custom-accent" /> Year-to-Year Retail Price Tracker
-                </h3>
-                {priceHistory.length === 0 ? (
-                  <div className="text-center py-10 text-xs text-custom-muted font-medium">No price change logs found. Adjust catalog items price to record.</div>
-                ) : (() => {
-                  const yearsSet = new Set<string>();
-                  const itemPriceMap = new Map<string, { [year: string]: number }>();
-
-                  priceHistory.forEach(entry => {
-                    yearsSet.add(entry.year);
-                    if (!itemPriceMap.has(entry.item_name)) {
-                      itemPriceMap.set(entry.item_name, {});
-                    }
-                    itemPriceMap.get(entry.item_name)![entry.year] = entry.price;
-                  });
-
-                  const sortedYears = Array.from(yearsSet).sort();
-
-                  return (
-                    <div className="overflow-auto max-h-52 border border-custom-border rounded-xl bg-black/10">
-                      <table className="w-full text-left text-xs font-semibold">
-                        <thead>
-                          <tr className="bg-custom-input text-custom-muted uppercase tracking-wider text-[9px] border-b border-custom-border">
-                            <th className="py-2.5 px-4 font-extrabold">Product Title</th>
-                            {sortedYears.map(yr => (
-                              <th key={yr} className="py-2.5 px-4 text-right font-extrabold">{yr} Price</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-custom-border/40 text-custom-text">
-                          {Array.from(itemPriceMap.entries()).map(([name, priceByYear]) => (
-                            <tr key={name} className="hover:bg-white/5 transition-colors">
-                              <td className="py-2.5 px-4 font-bold text-custom-text truncate max-w-[150px]">{name}</td>
-                              {sortedYears.map(yr => (
-                                <td key={yr} className="py-2.5 px-4 text-right font-mono text-custom-accent font-bold">
-                                  {priceByYear[yr] !== undefined ? `$${priceByYear[yr].toFixed(2)}` : '—'}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
               </div>
             </div>
 
-          </div>
-        )}
-
-        {/* SUB-TAB E: THEMES CONFIGURATION PANEL */}
-        {subTab === 'themes' && (
-          <div className="h-full flex flex-col xl:flex-row gap-6 min-h-0 overflow-hidden">
-            
             {/* Themes Selection Cards Grid */}
             <div className="flex-1 glass-panel rounded-2xl p-5 shadow-lg overflow-y-auto flex flex-col min-h-0">
               <h3 className="text-lg font-bold text-custom-text mb-1 flex items-center gap-2 shrink-0">
