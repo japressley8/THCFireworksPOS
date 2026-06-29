@@ -108,8 +108,6 @@ export const App: React.FC = () => {
 
   // Updater states
   const [updateAvailable, setUpdateAvailable] = useState<any>(null);
-  const [updateProgress, setUpdateProgress] = useState<string>('');
-  const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
   // Themes state loading from localStorage or starters
@@ -173,40 +171,13 @@ export const App: React.FC = () => {
     checkForUpdates();
   }, []);
 
-  const handleInstallUpdate = async () => {
-    if (!updateAvailable) return;
-    setIsUpdating(true);
-    setUpdateProgress('Starting download...');
+  const handleOpenReleasesPage = async () => {
     try {
-      const { relaunch } = await import('@tauri-apps/plugin-process');
-      let downloaded = 0;
-      let contentLength = 0;
-
-      await updateAvailable.downloadAndInstall((event: any) => {
-        switch (event.event) {
-          case 'Started':
-            contentLength = event.data.contentLength || 0;
-            setUpdateProgress('Downloading... (0%)');
-            break;
-          case 'Progress':
-            downloaded += event.data.chunkLength;
-            const pct = contentLength > 0 ? Math.round((downloaded / contentLength) * 100) : 0;
-            setUpdateProgress(`Downloading... (${pct}%)`);
-            break;
-          case 'Finished':
-            setUpdateProgress('Installing update...');
-            break;
-        }
-      });
-      
-      setUpdateProgress('Relaunching...');
-      setTimeout(async () => {
-        await relaunch();
-      }, 1000);
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl('https://github.com/japressley8/THCFireworksPOS/releases');
+      setShowUpdateModal(false);
     } catch (err) {
-      alert('Failed to install update: ' + err);
-      setIsUpdating(false);
-      setUpdateProgress('');
+      alert('Failed to open download page: ' + err);
     }
   };
 
@@ -263,8 +234,7 @@ export const App: React.FC = () => {
             <button
               id="btn-update-close"
               onClick={() => setShowUpdateModal(false)}
-              disabled={isUpdating}
-              className="absolute top-4 right-4 p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-muted hover:text-custom-text rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="absolute top-4 right-4 p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-muted hover:text-custom-text rounded-xl transition-all"
             >
               <X className="h-4 w-4" />
             </button>
@@ -297,41 +267,27 @@ export const App: React.FC = () => {
                 )}
               </div>
 
-              {isUpdating ? (
-                <div className="space-y-2.5 pt-2">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-custom-muted animate-pulse">{updateProgress}</span>
-                    <span className="text-custom-accent font-mono">{updateProgress.includes('%') ? updateProgress.match(/\d+/)?.[0] + '%' : ''}</span>
-                  </div>
-                  <div className="w-full h-2.5 bg-black/40 rounded-full overflow-hidden border border-custom-border relative">
-                    <div 
-                      className="h-full bg-gradient-to-r from-custom-primary to-custom-accent transition-all duration-300" 
-                      style={{ 
-                        width: updateProgress.includes('%') 
-                          ? `${updateProgress.match(/\d+/)?.[0] || 0}%` 
-                          : '50%' 
-                      }} 
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-3 pt-2">
-                  <button
-                    id="btn-update-remind-later"
-                    onClick={() => setShowUpdateModal(false)}
-                    className="flex-1 py-3 bg-custom-input hover:bg-custom-primary/10 border border-custom-border text-custom-text font-bold text-xs rounded-xl transition-all active:scale-95 shadow"
-                  >
-                    Remind Me Later
-                  </button>
-                  <button
-                    id="btn-update-execute"
-                    onClick={handleInstallUpdate}
-                    className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10"
-                  >
-                    Update Now
-                  </button>
-                </div>
-              )}
+              <p className="text-xs text-custom-muted leading-relaxed mt-2">
+                To keep your app <strong className="text-custom-accent">100% portable</strong> on your USB drive, clicking below will open the GitHub Releases page in your web browser. 
+                Simply download the new <code className="text-custom-text font-mono font-bold bg-custom-input px-1 py-0.5 rounded">fireworks-pos-app.exe</code> directly to your USB drive and replace the old file.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  id="btn-update-remind-later"
+                  onClick={() => setShowUpdateModal(false)}
+                  className="flex-1 py-3 bg-custom-input hover:bg-custom-primary/10 border border-custom-border text-custom-text font-bold text-xs rounded-xl transition-all active:scale-95 shadow"
+                >
+                  Remind Me Later
+                </button>
+                <button
+                  id="btn-update-execute"
+                  onClick={handleOpenReleasesPage}
+                  className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10"
+                >
+                  Download Update
+                </button>
+              </div>
             </div>
           </div>
         </div>

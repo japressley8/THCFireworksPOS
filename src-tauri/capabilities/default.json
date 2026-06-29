@@ -12,6 +12,7 @@
     "core:app:default",
     "core:resources:default",
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "opener:default"
   ]
 }

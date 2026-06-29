@@ -87,8 +87,11 @@ struct PriceHistoryEntry {
 // --- UTILITY PATH RESOLVER ---
 
 fn resolve_db_path() -> Result<PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to find current executable path: {}", e))?;
-    let exe_dir = exe_path.parent().ok_or_else(|| "Failed to get executable directory".to_string())?;
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to find current executable path: {}", e))?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Failed to get executable directory".to_string())?;
     Ok(exe_dir.join("firework_pos.db"))
 }
 
@@ -96,19 +99,24 @@ fn resolve_db_path() -> Result<PathBuf, String> {
 
 fn init_db() -> Result<(), String> {
     let db_path = resolve_db_path()?;
-    let mut conn = Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+    let mut conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
     // Check if items table exists and check if stock_quantity is NOT NULL to migrate it to nullable
-    let table_exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='items')",
-        [],
-        |r| r.get(0),
-    ).unwrap_or(false);
+    let table_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='items')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(false);
 
     if table_exists {
         // Query column metadata
         let is_not_null: bool = {
-            let mut stmt = conn.prepare("PRAGMA table_info(items)").map_err(|e| e.to_string())?;
+            let mut stmt = conn
+                .prepare("PRAGMA table_info(items)")
+                .map_err(|e| e.to_string())?;
             let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
             let mut not_null = false;
             while let Some(row) = rows.next().map_err(|e| e.to_string())? {
@@ -124,7 +132,9 @@ fn init_db() -> Result<(), String> {
 
         if is_not_null {
             // Run drops-not-null table migration
-            let tx = conn.transaction().map_err(|e| format!("Migration failed to start: {}", e))?;
+            let tx = conn
+                .transaction()
+                .map_err(|e| format!("Migration failed to start: {}", e))?;
             tx.execute("PRAGMA foreign_keys=OFF", []).ok();
 
             tx.execute(
@@ -141,19 +151,24 @@ fn init_db() -> Result<(), String> {
                     unit_cost REAL
                 );",
                 [],
-            ).map_err(|e| format!("Migration items_new creation failed: {}", e))?;
+            )
+            .map_err(|e| format!("Migration items_new creation failed: {}", e))?;
 
             tx.execute(
                 "INSERT INTO items_new (id, barcode, name, price, stock_quantity)
                  SELECT id, barcode, name, price, stock_quantity FROM items;",
                 [],
-            ).map_err(|e| format!("Migration data transfer failed: {}", e))?;
+            )
+            .map_err(|e| format!("Migration data transfer failed: {}", e))?;
 
-            tx.execute("DROP TABLE items;", []).map_err(|e| format!("Migration old table drop failed: {}", e))?;
-            tx.execute("ALTER TABLE items_new RENAME TO items;", []).map_err(|e| format!("Migration rename failed: {}", e))?;
+            tx.execute("DROP TABLE items;", [])
+                .map_err(|e| format!("Migration old table drop failed: {}", e))?;
+            tx.execute("ALTER TABLE items_new RENAME TO items;", [])
+                .map_err(|e| format!("Migration rename failed: {}", e))?;
 
             tx.execute("PRAGMA foreign_keys=ON", []).ok();
-            tx.commit().map_err(|e| format!("Migration commit failed: {}", e))?;
+            tx.commit()
+                .map_err(|e| format!("Migration commit failed: {}", e))?;
         }
     }
 
@@ -172,14 +187,20 @@ fn init_db() -> Result<(), String> {
             unit_cost REAL
         );",
         [],
-    ).map_err(|e| format!("Schema error (items): {}", e))?;
+    )
+    .map_err(|e| format!("Schema error (items): {}", e))?;
 
     // Apply column additions if table was created before updates
-    conn.execute("ALTER TABLE items ADD COLUMN notes TEXT", []).ok();
-    conn.execute("ALTER TABLE items ADD COLUMN bulk_price REAL", []).ok();
-    conn.execute("ALTER TABLE items ADD COLUMN bulk_barcode TEXT", []).ok();
-    conn.execute("ALTER TABLE items ADD COLUMN bulk_quantity INTEGER", []).ok();
-    conn.execute("ALTER TABLE items ADD COLUMN unit_cost REAL", []).ok();
+    conn.execute("ALTER TABLE items ADD COLUMN notes TEXT", [])
+        .ok();
+    conn.execute("ALTER TABLE items ADD COLUMN bulk_price REAL", [])
+        .ok();
+    conn.execute("ALTER TABLE items ADD COLUMN bulk_barcode TEXT", [])
+        .ok();
+    conn.execute("ALTER TABLE items ADD COLUMN bulk_quantity INTEGER", [])
+        .ok();
+    conn.execute("ALTER TABLE items ADD COLUMN unit_cost REAL", [])
+        .ok();
 
     // Create Price History Table
     conn.execute(
@@ -192,7 +213,8 @@ fn init_db() -> Result<(), String> {
             FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE
         );",
         [],
-    ).map_err(|e| format!("Schema error (price history): {}", e))?;
+    )
+    .map_err(|e| format!("Schema error (price history): {}", e))?;
 
     // Create Discounts Table
     conn.execute(
@@ -203,7 +225,8 @@ fn init_db() -> Result<(), String> {
             value REAL NOT NULL
         );",
         [],
-    ).map_err(|e| format!("Schema error (discounts): {}", e))?;
+    )
+    .map_err(|e| format!("Schema error (discounts): {}", e))?;
 
     // Create Sales Table
     conn.execute(
@@ -216,7 +239,8 @@ fn init_db() -> Result<(), String> {
             final_total REAL NOT NULL
         );",
         [],
-    ).map_err(|e| format!("Schema error (sales): {}", e))?;
+    )
+    .map_err(|e| format!("Schema error (sales): {}", e))?;
 
     // Create Sale Items Table
     conn.execute(
@@ -230,21 +254,25 @@ fn init_db() -> Result<(), String> {
             FOREIGN KEY(item_id) REFERENCES items(id)
         );",
         [],
-    ).map_err(|e| format!("Schema error (sale_items): {}", e))?;
+    )
+    .map_err(|e| format!("Schema error (sale_items): {}", e))?;
 
     Ok(())
 }
 
 // --- PRICE LOG HELPER ---
 
-fn record_price_history(conn: &Connection, item_id: i32, price: f64) -> Result<(), rusqlite::Error> {
-    let year: String = conn.query_row(
-        "SELECT strftime('%Y', 'now')",
-        [],
-        |r| r.get(0),
-    ).unwrap_or_else(|_| "2026".to_string());
+fn record_price_history(
+    conn: &Connection,
+    item_id: i32,
+    price: f64,
+) -> Result<(), rusqlite::Error> {
+    let year: String = conn
+        .query_row("SELECT strftime('%Y', 'now')", [], |r| r.get(0))
+        .unwrap_or_else(|_| "2026".to_string());
 
-    let mut stmt = conn.prepare("SELECT id FROM item_price_history WHERE item_id = ?1 AND year = ?2")?;
+    let mut stmt =
+        conn.prepare("SELECT id FROM item_price_history WHERE item_id = ?1 AND year = ?2")?;
     let exists = stmt.exists(params![item_id, year])?;
     if exists {
         conn.execute(
@@ -516,7 +544,12 @@ fn complete_sale(
                 "UPDATE items SET stock_quantity = stock_quantity - ?1 WHERE id = ?2",
                 params![qty_to_deduct, target.item_id],
             )
-            .map_err(|e| format!("Inventory update error for Item ID {}: {}", target.item_id, e))?;
+            .map_err(|e| {
+                format!(
+                    "Inventory update error for Item ID {}: {}",
+                    target.item_id, e
+                )
+            })?;
         }
 
         // Record sale details
@@ -527,7 +560,8 @@ fn complete_sale(
         .map_err(|e| format!("Failed to insert sale detail log: {}", e))?;
     }
 
-    tx.commit().map_err(|e| format!("Transaction commit failure: {}", e))?;
+    tx.commit()
+        .map_err(|e| format!("Transaction commit failure: {}", e))?;
 
     Ok(sale_id)
 }
@@ -597,7 +631,8 @@ fn get_sales() -> Result<Vec<Sale>, String> {
 #[tauri::command]
 fn get_yearly_sales_summary() -> Result<Vec<YearSummary>, String> {
     let db_path = resolve_db_path()?;
-    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
     let mut stmt = conn
         .prepare(
@@ -648,11 +683,18 @@ fn get_yearly_sales_summary() -> Result<Vec<YearSummary>, String> {
 #[tauri::command]
 fn seed_historical_sales() -> Result<(), String> {
     let db_path = resolve_db_path()?;
-    let mut conn = Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+    let mut conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
-    conn.execute("DELETE FROM sales WHERE timestamp LIKE '2024%' OR timestamp LIKE '2025%'", []).ok();
+    conn.execute(
+        "DELETE FROM sales WHERE timestamp LIKE '2024%' OR timestamp LIKE '2025%'",
+        [],
+    )
+    .ok();
 
-    let tx = conn.transaction().map_err(|e| format!("Failed to start transaction: {}", e))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
     let sales_2024 = vec![
         ("2024-07-02 12:30:00", 120.00, 0.00, 0.00, 120.00),
@@ -684,14 +726,16 @@ fn seed_historical_sales() -> Result<(), String> {
         ).map_err(|e| format!("Failed to insert 2025 sale: {}", e))?;
     }
 
-    tx.commit().map_err(|e| format!("Failed to commit historical seeds: {}", e))?;
+    tx.commit()
+        .map_err(|e| format!("Failed to commit historical seeds: {}", e))?;
     Ok(())
 }
 
 #[tauri::command]
 fn get_daily_sales_summary() -> Result<Vec<DaySummary>, String> {
     let db_path = resolve_db_path()?;
-    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
     let mut stmt = conn
         .prepare(
@@ -740,7 +784,7 @@ fn get_item_price_history() -> Result<Vec<PriceHistoryEntry>, String> {
             "SELECT iph.item_id, i.name, iph.year, iph.price
              FROM item_price_history iph
              JOIN items i ON iph.item_id = i.id
-             ORDER BY i.name ASC, iph.year ASC"
+             ORDER BY i.name ASC, iph.year ASC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -772,6 +816,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
@@ -823,15 +868,18 @@ mod tests {
             conn.execute(
                 "INSERT INTO items (barcode, name, price, stock_quantity) VALUES (?1, ?2, ?3, ?4)",
                 params!["1001", "Red Hot Sparklers (10-pack)", 4.99, 150],
-            ).unwrap();
+            )
+            .unwrap();
             conn.execute(
                 "INSERT INTO items (barcode, name, price, stock_quantity) VALUES (?1, ?2, ?3, ?4)",
                 params!["1002", "Roman Candle (8-shot)", 9.99, 80],
-            ).unwrap();
+            )
+            .unwrap();
             conn.execute(
                 "INSERT INTO discounts (name, type, value) VALUES (?1, ?2, ?3)",
                 params!["Church Member", "percentage", 10.0],
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         let items = get_items().expect("Failed to query catalog");
@@ -854,8 +902,9 @@ mod tests {
             None,
             None,
             None
-        ).is_ok());
-        
+        )
+        .is_ok());
+
         let custom_item = get_item_by_barcode("9999".to_string())
             .expect("Database query failed")
             .expect("Inserted item 9999 not found");
@@ -872,7 +921,8 @@ mod tests {
             None,
             None,
             None
-        ).is_ok());
+        )
+        .is_ok());
 
         let updated_item = get_item_by_barcode("9999".to_string())
             .expect("Query failed")
@@ -885,14 +935,12 @@ mod tests {
         assert!(!discounts.is_empty());
 
         // 6. Verify successful sale transaction
-        let cart = vec![
-            SaleItemInput {
-                item_id: updated_item.id,
-                quantity: 5,
-                price_at_sale: updated_item.price,
-                is_bulk: None,
-            }
-        ];
+        let cart = vec![SaleItemInput {
+            item_id: updated_item.id,
+            quantity: 5,
+            price_at_sale: updated_item.price,
+            is_bulk: None,
+        }];
 
         let subtotal = updated_item.price * 5.0;
         let sale_id = complete_sale(cart, subtotal, 0.0, 0.0, subtotal)
@@ -905,14 +953,12 @@ mod tests {
         assert_eq!(sold_item.stock_quantity, Some(20));
 
         // 7. Verify transaction rollback on stock depletion
-        let bad_cart = vec![
-            SaleItemInput {
-                item_id: sold_item.id,
-                quantity: 30,
-                price_at_sale: sold_item.price,
-                is_bulk: None,
-            }
-        ];
+        let bad_cart = vec![SaleItemInput {
+            item_id: sold_item.id,
+            quantity: 30,
+            price_at_sale: sold_item.price,
+            is_bulk: None,
+        }];
 
         let bad_subtotal = sold_item.price * 30.0;
         let checkout_result = complete_sale(bad_cart, bad_subtotal, 0.0, 0.0, bad_subtotal);
@@ -922,7 +968,7 @@ mod tests {
         assert!(seed_historical_sales().is_ok());
         let summary = get_yearly_sales_summary().expect("Failed to get yearly sales summary");
         assert!(summary.len() >= 3);
-        
+
         let has_2024 = summary.iter().any(|s| s.year == "2024");
         let has_2025 = summary.iter().any(|s| s.year == "2025");
         assert!(has_2024);
