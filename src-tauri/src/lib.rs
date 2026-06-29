@@ -96,13 +96,25 @@ fn resolve_db_path() -> Result<PathBuf, String> {
 }
 
 fn resolve_backup_path() -> Option<PathBuf> {
-    if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
-        let mut path = PathBuf::from(local_appdata);
-        path.push("THCFireworksPOS");
-        path.push("firework_pos_backup.db");
-        return Some(path);
+    #[cfg(test)]
+    {
+        if let Ok(mut path) = std::env::current_dir() {
+            path.push("target");
+            path.push("firework_pos_test_backup.db");
+            return Some(path);
+        }
+        return None;
     }
-    None
+    #[cfg(not(test))]
+    {
+        if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
+            let mut path = PathBuf::from(local_appdata);
+            path.push("THCFireworksPOS");
+            path.push("firework_pos_backup.db");
+            return Some(path);
+        }
+        None
+    }
 }
 
 fn backup_db() {
@@ -458,6 +470,7 @@ fn update_item_stock(id: i32, stock_quantity: Option<i32>) -> Result<(), String>
 #[tauri::command]
 fn update_item_details(
     id: i32,
+    name: String,
     price: f64,
     stock_quantity: Option<i32>,
     notes: Option<String>,
@@ -470,8 +483,8 @@ fn update_item_details(
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "UPDATE items SET price = ?1, stock_quantity = ?2, notes = ?3, bulk_price = ?4, bulk_barcode = ?5, bulk_quantity = ?6, unit_cost = ?7 WHERE id = ?8",
-        params![price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, id],
+        "UPDATE items SET name = ?1, price = ?2, stock_quantity = ?3, notes = ?4, bulk_price = ?5, bulk_barcode = ?6, bulk_quantity = ?7, unit_cost = ?8 WHERE id = ?9",
+        params![name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -959,6 +972,11 @@ mod tests {
                 let _ = fs::remove_file(path);
             }
         }
+        if let Some(path) = resolve_backup_path() {
+            if path.exists() {
+                let _ = fs::remove_file(path);
+            }
+        }
     }
 
     #[test]
@@ -1019,6 +1037,7 @@ mod tests {
         // 4. Verify editing stock count and retail prices
         assert!(update_item_details(
             custom_item.id,
+            "Mega Blast Aerial Edited".to_string(),
             54.99,
             Some(25),
             None,

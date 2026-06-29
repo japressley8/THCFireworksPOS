@@ -90,7 +90,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newItemBulkPrice, setNewItemBulkPrice] = useState<string>('');
   const [newItemBulkBarcode, setNewItemBulkBarcode] = useState<string>('');
   const [newItemBulkQuantity, setNewItemBulkQuantity] = useState<string>('');
-  const [newItemUnitCost, setNewItemUnitCost] = useState<string>('');
 
   // New Discount Form State
   const [newDiscName, setNewDiscName] = useState<string>('');
@@ -105,13 +104,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Editing state
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editItemName, setEditItemName] = useState<string>('');
   const [editItemStock, setEditItemStock] = useState<string>('');
   const [editItemPrice, setEditItemPrice] = useState<string>('');
   const [editItemNotes, setEditItemNotes] = useState<string>('');
   const [editItemBulkPrice, setEditItemBulkPrice] = useState<string>('');
   const [editItemBulkBarcode, setEditItemBulkBarcode] = useState<string>('');
   const [editItemBulkQuantity, setEditItemBulkQuantity] = useState<string>('');
-  const [editItemUnitCost, setEditItemUnitCost] = useState<string>('');
 
   // Admin configurations & trends
   const [priceHistory, setPriceHistory] = useState<any[]>([]);
@@ -376,13 +375,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
           } else {
             await invoke('update_item_details', {
               id: existing.id,
+              name: existing.name,
               price: item.price,
               stockQuantity: stockVal,
               notes: existing.notes || null,
               bulkPrice: existing.bulk_price !== undefined ? existing.bulk_price : null,
               bulkBarcode: existing.bulk_barcode || null,
               bulkQuantity: existing.bulk_quantity !== undefined ? existing.bulk_quantity : null,
-              unitCost: existing.unit_cost !== undefined ? existing.unit_cost : null
+              unitCost: null
             });
             successCount++;
           }
@@ -453,7 +453,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const stock = newItemStock.trim() === '' ? null : parseInt(newItemStock, 10);
     const bulkPrice = newItemBulkPrice.trim() === '' ? null : parseFloat(newItemBulkPrice);
     const bulkQuantity = newItemBulkQuantity.trim() === '' ? null : parseInt(newItemBulkQuantity, 10);
-    const unitCost = newItemUnitCost.trim() === '' ? null : parseFloat(newItemUnitCost);
 
     if (!newItemBarcode.trim() || !newItemName.trim() || isNaN(price)) {
       triggerNotice('Please fill out barcode, name, and price correctly', 'error');
@@ -470,7 +469,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         bulkPrice,
         bulkBarcode: newItemBulkBarcode.trim() === '' ? null : newItemBulkBarcode.trim(),
         bulkQuantity,
-        unitCost
+        unitCost: null
       });
 
       triggerNotice(`Successfully added "${newItemName}"`, 'success');
@@ -482,7 +481,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setNewItemBulkPrice('');
       setNewItemBulkBarcode('');
       setNewItemBulkQuantity('');
-      setNewItemUnitCost('');
       loadInventory();
     } catch (err) {
       triggerNotice('Failed to add product: ' + err, 'error');
@@ -494,7 +492,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const price = parseFloat(editItemPrice);
     const bulkPrice = editItemBulkPrice.trim() === '' ? null : parseFloat(editItemBulkPrice);
     const bulkQuantity = editItemBulkQuantity.trim() === '' ? null : parseInt(editItemBulkQuantity, 10);
-    const unitCost = editItemUnitCost.trim() === '' ? null : parseFloat(editItemUnitCost);
+
+    if (editItemName.trim() === '') {
+      triggerNotice('Please enter a product name', 'error');
+      return;
+    }
 
     if (isNaN(price)) {
       triggerNotice('Please enter a valid price value', 'error');
@@ -504,13 +506,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
     try {
       await invoke('update_item_details', {
         id: itemId,
+        name: editItemName.trim(),
         price,
         stockQuantity: stock,
         notes: editItemNotes.trim() === '' ? null : editItemNotes.trim(),
         bulkPrice,
         bulkBarcode: editItemBulkBarcode.trim() === '' ? null : editItemBulkBarcode.trim(),
         bulkQuantity,
-        unitCost
+        unitCost: null
       });
 
       triggerNotice('Product details updated', 'success');
@@ -771,28 +774,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Items Per Case</label>
-                        <input 
-                          type="number" 
-                          placeholder="e.g. 24"
-                          value={newItemBulkQuantity}
-                          onChange={e => setNewItemBulkQuantity(e.target.value)}
-                          className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Stock Cost / Unit ($)</label>
-                        <input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Wholesale cost"
-                          value={newItemUnitCost}
-                          onChange={e => setNewItemUnitCost(e.target.value)}
-                          className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Items Per Case</label>
+                      <input 
+                        type="number" 
+                        placeholder="e.g. 24"
+                        value={newItemBulkQuantity}
+                        onChange={e => setNewItemBulkQuantity(e.target.value)}
+                        className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40"
+                      />
                     </div>
                   </div>
 
@@ -951,9 +941,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <tr key={item.id} className="hover:bg-custom-primary/10 text-custom-text border-b border-custom-border/30 align-top">
                             <td className="py-4.5 px-6 font-mono text-xs text-custom-muted">{item.barcode}</td>
                             <td className="py-4.5 px-6 font-bold text-custom-text text-base">
-                              {item.name}
                               {isEditing ? (
                                 <div className="space-y-2.5 mt-2 p-3 bg-custom-input border border-custom-border rounded-xl text-xs font-semibold max-w-sm">
+                                  <div>
+                                    <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Product Title</label>
+                                    <input 
+                                      type="text" 
+                                      value={editItemName} 
+                                      onChange={e => setEditItemName(e.target.value)} 
+                                      placeholder="Product Name"
+                                      className="w-full px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text focus:outline-none font-bold" 
+                                    />
+                                  </div>
                                   <div>
                                     <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Private Manager Notes</label>
                                     <input 
@@ -987,39 +986,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                       />
                                     </div>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Qty Per Case</label>
-                                      <input 
-                                        type="number" 
-                                        value={editItemBulkQuantity} 
-                                        onChange={e => setEditItemBulkQuantity(e.target.value)} 
-                                        placeholder="e.g. 24"
-                                        className="w-full px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text font-mono focus:outline-none" 
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Unit Cost ($)</label>
-                                      <input 
-                                        type="number" 
-                                        step="0.01" 
-                                        value={editItemUnitCost} 
-                                        onChange={e => setEditItemUnitCost(e.target.value)} 
-                                        placeholder="Wholesale cost"
-                                        className="w-full px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text font-mono focus:outline-none" 
-                                      />
-                                    </div>
+                                  <div>
+                                    <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Qty Per Case</label>
+                                    <input 
+                                      type="number" 
+                                      value={editItemBulkQuantity} 
+                                      onChange={e => setEditItemBulkQuantity(e.target.value)} 
+                                      placeholder="e.g. 24"
+                                      className="w-full px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text font-mono focus:outline-none" 
+                                    />
                                   </div>
                                 </div>
                               ) : (
                                 <>
+                                  {item.name}
                                   {item.notes && (
-                                    <span className="block text-[10px] text-custom-accent italic mt-1.5 bg-custom-accent/10 px-2.5 py-1 rounded w-max border border-custom-accent/10">
+                                    <span className="block text-[10px] text-custom-accent italic mt-1.5 bg-custom-accent/10 px-2.5 py-1 rounded w-max border border-custom-accent/10 font-normal">
                                       Notes: {item.notes}
                                     </span>
                                   )}
                                   {item.bulk_barcode && (
-                                    <span className="block text-[10px] text-custom-muted/90 mt-1 font-sans">
+                                    <span className="block text-[10px] text-custom-muted/90 mt-1 font-sans font-normal">
                                       Bulk Case: {item.bulk_quantity} units at ${item.bulk_price?.toFixed(2)} (UPC: {item.bulk_barcode})
                                     </span>
                                   )}
@@ -1091,13 +1078,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     id={`btn-edit-item-${item.id}`}
                                     onClick={() => {
                                       setEditingItemId(item.id);
+                                      setEditItemName(item.name);
                                       setEditItemStock(item.stock_quantity !== null && item.stock_quantity !== undefined ? item.stock_quantity.toString() : '');
                                       setEditItemPrice(item.price.toFixed(2));
                                       setEditItemNotes(item.notes || '');
                                       setEditItemBulkBarcode(item.bulk_barcode || '');
                                       setEditItemBulkPrice(item.bulk_price !== null && item.bulk_price !== undefined ? item.bulk_price.toString() : '');
                                       setEditItemBulkQuantity(item.bulk_quantity !== null && item.bulk_quantity !== undefined ? item.bulk_quantity.toString() : '');
-                                      setEditItemUnitCost(item.unit_cost !== null && item.unit_cost !== undefined ? item.unit_cost.toString() : '');
                                     }}
                                     className="px-3.5 py-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-text text-xs font-bold rounded-lg transition-all"
                                   >
@@ -1593,15 +1580,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         onChange={e => handleTotalCostChange(parseFloat(e.target.value) || 0)}
                         className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm"
                       />
-                      <span className="text-[10px] text-custom-muted/80 mt-1 block">Sum of item unit costs used if left at 0.</span>
+                      <span className="text-[10px] text-custom-muted/80 mt-1 block">Leave 0 to disable profit tracking.</span>
                     </div>
                   </div>
 
                   {/* Profit Margins breakdown */}
                   {(() => {
                     const grandTotalRevenue = yearlySummaries.reduce((sum, s) => sum + s.total_sales, 0);
-                    const calculatedItemCost = items.reduce((sum, item) => sum + (item.unit_cost || 0) * (item.stock_quantity || 0), 0);
-                    const appliedCost = totalStockCostSpent > 0 ? totalStockCostSpent : calculatedItemCost;
+                    const appliedCost = totalStockCostSpent;
                     const profit = grandTotalRevenue - appliedCost;
                     return (
                       <div className="bg-custom-input/40 border border-custom-border rounded-xl p-4.5 grid grid-cols-3 gap-3 text-center">
@@ -1611,13 +1597,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                         <div>
                           <span className="block text-[10px] text-custom-muted uppercase font-bold">Stock Expenses</span>
-                          <span className="block font-mono text-base font-bold text-red-400 mt-0.5" title={totalStockCostSpent > 0 ? "Manual override amount" : "Auto-computed catalog sum cost"}>
+                          <span className="block font-mono text-base font-bold text-red-400 mt-0.5">
                             ${appliedCost.toFixed(2)}
                           </span>
                         </div>
                         <div>
                           <span className="block text-[10px] text-custom-muted uppercase font-bold">Net Profit</span>
-                          <span className={`block font-mono text-base font-bold mt-0.5 ${profit >= 0 ? 'text-emerald-400' : 'text-red-405'}`}>
+                          <span className={`block font-mono text-base font-bold mt-0.5 ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             ${profit.toFixed(2)}
                           </span>
                         </div>
