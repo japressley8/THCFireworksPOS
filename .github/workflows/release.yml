@@ -53,19 +53,16 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           
-          # Locate built installer zip file and signature
-          $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*nsis.zip" -Recurse | Select-Object -First 1
-          if ($null -eq $zipFile) {
-            $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*setup*.zip" -Recurse | Select-Object -First 1
-          }
-          if ($null -eq $zipFile) {
-            $zipFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.zip" -Recurse | Select-Object -First 1
+          # Locate built installer file and signature
+          $installerFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*setup.exe" -Recurse | Select-Object -First 1
+          if ($null -eq $installerFile) {
+            $installerFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.exe" -Recurse | Select-Object -First 1
           }
           
-          $sigFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "$($zipFile.Name).sig" -Recurse | Select-Object -First 1
+          $sigFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "$($installerFile.Name).sig" -Recurse | Select-Object -First 1
           
-          if ($null -eq $zipFile -or $null -eq $sigFile) {
-             Write-Error "Could not locate installer zip or sig file!"
+          if ($null -eq $installerFile -or $null -eq $sigFile) {
+             Write-Error "Could not locate installer exe or sig file!"
              exit 1
           }
 
@@ -82,7 +79,7 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $signature
-                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$($zipFile.Name)"
+                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$($installerFile.Name)"
               }
             }
           }
