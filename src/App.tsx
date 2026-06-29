@@ -112,48 +112,105 @@ export const App: React.FC = () => {
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [showAdminWarning, setShowAdminWarning] = useState<boolean>(false);
 
-  // Themes state loading from localStorage or starters
-  const [themes, setThemes] = useState<Theme[]>(() => {
-    const saved = localStorage.getItem('thc_fireworks_themes');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Theme[];
-        const custom = parsed.filter(t => t.isCustom);
-        return [...starterThemes, ...custom];
-      } catch (e) {
-        return starterThemes;
-      }
-    }
-    return starterThemes;
-  });
+  // Themes state loading from SQLite settings
+  const [themes, setThemes] = useState<Theme[]>(starterThemes);
+  const [activeThemeId, setActiveThemeId] = useState<string>('thc');
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
+  const [totalStockCostSpent, setTotalStockCostSpent] = useState<number>(0);
 
-  const [activeThemeId, setActiveThemeId] = useState<string>(() => {
-    return localStorage.getItem('thc_fireworks_active_theme') || 'thc';
-  });
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const activeTheme = await invoke<string | null>('get_setting', { key: 'active_theme' });
+        if (activeTheme) {
+          setActiveThemeId(activeTheme);
+        }
+
+        const customThemesJson = await invoke<string | null>('get_setting', { key: 'custom_themes' });
+        if (customThemesJson) {
+          try {
+            const parsed = JSON.parse(customThemesJson) as Theme[];
+            const custom = parsed.filter(t => t.isCustom);
+            setThemes([...starterThemes, ...custom]);
+          } catch (e) {
+            console.error('Failed to parse custom themes from DB', e);
+          }
+        }
+
+        const threshold = await invoke<string | null>('get_setting', { key: 'low_stock_threshold' });
+        if (threshold) {
+          setLowStockThreshold(parseInt(threshold, 10));
+        }
+
+        const costSpent = await invoke<string | null>('get_setting', { key: 'total_stock_cost_spent' });
+        if (costSpent) {
+          setTotalStockCostSpent(parseFloat(costSpent));
+        }
+      } catch (e) {
+        console.error('Failed to load settings from DB', e);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const activeTheme = themes.find(t => t.id === activeThemeId) || starterThemes[0];
 
-  const handleSelectTheme = (id: string) => {
+  const handleSelectTheme = async (id: string) => {
     setActiveThemeId(id);
-    localStorage.setItem('thc_fireworks_active_theme', id);
+    try {
+      await invoke('save_setting', { key: 'active_theme', value: id });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleSaveCustomTheme = (theme: Theme) => {
+  const handleSaveCustomTheme = async (theme: Theme) => {
     const newThemes = [...themes.filter(t => t.id !== theme.id), theme];
     setThemes(newThemes);
-    localStorage.setItem('thc_fireworks_themes', JSON.stringify(newThemes));
     setActiveThemeId(theme.id);
-    localStorage.setItem('thc_fireworks_active_theme', theme.id);
+    try {
+      await invoke('save_setting', { key: 'custom_themes', value: JSON.stringify(newThemes) });
+      await invoke('save_setting', { key: 'active_theme', value: theme.id });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleDeleteCustomTheme = (id: string) => {
+  const handleDeleteCustomTheme = async (id: string) => {
     if (id === activeThemeId) {
       setActiveThemeId('thc');
-      localStorage.setItem('thc_fireworks_active_theme', 'thc');
+      try {
+        await invoke('save_setting', { key: 'active_theme', value: 'thc' });
+      } catch (e) {
+        console.error(e);
+      }
     }
     const newThemes = themes.filter(t => t.id !== id);
     setThemes(newThemes);
-    localStorage.setItem('thc_fireworks_themes', JSON.stringify(newThemes));
+    try {
+      await invoke('save_setting', { key: 'custom_themes', value: JSON.stringify(newThemes) });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleThresholdChange = async (val: number) => {
+    setLowStockThreshold(val);
+    try {
+      await invoke('save_setting', { key: 'low_stock_threshold', value: val.toString() });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleTotalCostChange = async (val: number) => {
+    setTotalStockCostSpent(val);
+    try {
+      await invoke('save_setting', { key: 'total_stock_cost_spent', value: val.toString() });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Check for updates automatically on start
@@ -448,6 +505,7 @@ export const App: React.FC = () => {
             scannedBarcode={scannedBarcode} 
             onClearScan={clearScan}
             taxRate={taxRate}
+            lowStockThreshold={lowStockThreshold}
           />
         ) : (
           <AdminView 
@@ -458,6 +516,10 @@ export const App: React.FC = () => {
             onSelectTheme={handleSelectTheme}
             onSaveCustomTheme={handleSaveCustomTheme}
             onDeleteCustomTheme={handleDeleteCustomTheme}
+            lowStockThreshold={lowStockThreshold}
+            onThresholdChange={handleThresholdChange}
+            totalStockCostSpent={totalStockCostSpent}
+            onTotalCostChange={handleTotalCostChange}
           />
         )}
       </main>

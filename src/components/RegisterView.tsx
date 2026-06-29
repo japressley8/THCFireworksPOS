@@ -22,12 +22,14 @@ interface RegisterViewProps {
   scannedBarcode: string;
   onClearScan: () => void;
   taxRate: number; // default e.g. 0.00
+  lowStockThreshold: number;
 }
 
 export const RegisterView: React.FC<RegisterViewProps> = ({ 
   scannedBarcode, 
   onClearScan,
-  taxRate
+  taxRate,
+  lowStockThreshold
 }) => {
   // State
   const [items, setItems] = useState<Item[]>([]);
@@ -347,7 +349,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       });
 
       // Check for low stock items from the completed transaction
-      const threshold = parseInt(localStorage.getItem('thc_low_stock_threshold') || '10', 10);
+      const threshold = lowStockThreshold;
       const lowStockItems: string[] = [];
       
       for (const cartItem of cart) {

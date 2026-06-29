@@ -73,7 +73,7 @@ jobs:
           $pubkey = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzNEVBRDhGMDU5QTVCRDkKUldUWlc1b0ZqNjFPSTZMNVc5WTlMcFR3bzNsSzBQTC9hUzM0UmRBY211RFpsaVd2K2dhZVI5Tm8K"
 
           $json = @{
-            version = "${{ github.ref_name }}"
+            version = "$version"
             notes = "Automated Release for ${{ github.ref_name }}"
             pubkey = $pubkey
             platforms = @{

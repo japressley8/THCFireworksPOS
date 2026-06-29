@@ -95,10 +95,47 @@ fn resolve_db_path() -> Result<PathBuf, String> {
     Ok(exe_dir.join("firework_pos.db"))
 }
 
+fn resolve_backup_path() -> Option<PathBuf> {
+    if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
+        let mut path = PathBuf::from(local_appdata);
+        path.push("THCFireworksPOS");
+        path.push("firework_pos_backup.db");
+        return Some(path);
+    }
+    None
+}
+
+fn backup_db() {
+    if let Ok(db_path) = resolve_db_path() {
+        if db_path.exists() {
+            if let Some(backup_path) = resolve_backup_path() {
+                // Ensure parent directories exist
+                if let Some(parent) = backup_path.parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                std::fs::copy(&db_path, &backup_path).ok();
+            }
+        }
+    }
+}
+
 // --- DATABASE SEEDER & MIGRATOR ---
 
 fn init_db() -> Result<(), String> {
     let db_path = resolve_db_path()?;
+    
+    // Auto-restore backup if database is missing
+    if !db_path.exists() {
+        if let Some(backup_path) = resolve_backup_path() {
+            if backup_path.exists() {
+                if let Some(parent) = db_path.parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                std::fs::copy(&backup_path, &db_path).ok();
+            }
+        }
+    }
+
     let mut conn =
         Connection::open(&db_path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
@@ -257,6 +294,18 @@ fn init_db() -> Result<(), String> {
     )
     .map_err(|e| format!("Schema error (sale_items): {}", e))?;
 
+    // Create Settings Table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );",
+        [],
+    )
+    .map_err(|e| format!("Schema error (settings): {}", e))?;
+
+    backup_db();
+
     Ok(())
 }
 
@@ -386,6 +435,7 @@ fn add_item(
 
     let item_id = conn.last_insert_rowid() as i32;
     record_price_history(&conn, item_id, price).ok();
+    backup_db();
 
     Ok(())
 }
@@ -400,6 +450,7 @@ fn update_item_stock(id: i32, stock_quantity: Option<i32>) -> Result<(), String>
         params![stock_quantity, id],
     )
     .map_err(|e| e.to_string())?;
+    backup_db();
 
     Ok(())
 }
@@ -425,6 +476,7 @@ fn update_item_details(
     .map_err(|e| e.to_string())?;
 
     record_price_history(&conn, id, price).ok();
+    backup_db();
 
     Ok(())
 }
@@ -436,6 +488,7 @@ fn delete_item(id: i32) -> Result<(), String> {
 
     conn.execute("DELETE FROM items WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
+    backup_db();
 
     Ok(())
 }
@@ -477,6 +530,7 @@ fn add_discount(name: String, discount_type: String, value: f64) -> Result<(), S
         params![name, discount_type, value],
     )
     .map_err(|e| e.to_string())?;
+    backup_db();
 
     Ok(())
 }
@@ -488,6 +542,7 @@ fn delete_discount(id: i32) -> Result<(), String> {
 
     conn.execute("DELETE FROM discounts WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
+    backup_db();
 
     Ok(())
 }
@@ -562,6 +617,7 @@ fn complete_sale(
 
     tx.commit()
         .map_err(|e| format!("Transaction commit failure: {}", e))?;
+    backup_db();
 
     Ok(sale_id)
 }
@@ -835,12 +891,61 @@ pub fn run() {
             get_yearly_sales_summary,
             get_daily_sales_summary,
             seed_historical_sales,
-            get_item_price_history
+            get_item_price_history,
+            get_setting,
+            save_setting
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
+#[tauri::command]
+fn get_setting(key: String) -> Result<Option<String>, String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    // Ensure settings table exists
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );",
+        [],
+    ).ok();
+
+    let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1").map_err(|e| e.to_string())?;
+    let mut rows = stmt.query(params![key]).map_err(|e| e.to_string())?;
+    if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let val: String = row.get(0).map_err(|e| e.to_string())?;
+        Ok(Some(val))
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+fn save_setting(key: String, value: String) -> Result<(), String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    // Ensure settings table exists
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );",
+        [],
+    ).ok();
+
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![key, value],
+    ).map_err(|e| e.to_string())?;
+
+    backup_db();
+    Ok(())
+}
 // --- AUTOMATED DATABASE TESTS ---
 #[cfg(test)]
 mod tests {

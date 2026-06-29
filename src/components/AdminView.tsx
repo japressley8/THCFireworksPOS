@@ -30,6 +30,10 @@ interface AdminViewProps {
   onSelectTheme: (id: string) => void;
   onSaveCustomTheme: (theme: Theme) => void;
   onDeleteCustomTheme: (id: string) => void;
+  lowStockThreshold: number;
+  onThresholdChange: (val: number) => void;
+  totalStockCostSpent: number;
+  onTotalCostChange: (val: number) => void;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
@@ -39,7 +43,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   themes,
   onSelectTheme,
   onSaveCustomTheme,
-  onDeleteCustomTheme
+  onDeleteCustomTheme,
+  lowStockThreshold,
+  onThresholdChange,
+  totalStockCostSpent,
+  onTotalCostChange
 }) => {
   // Security
   const [isAdminUnlocked] = useState<boolean>(true);
@@ -106,12 +114,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editItemUnitCost, setEditItemUnitCost] = useState<string>('');
 
   // Admin configurations & trends
-  const [lowStockThreshold, setLowStockThreshold] = useState<number>(() => {
-    return parseInt(localStorage.getItem('thc_low_stock_threshold') || '10', 10);
-  });
-  const [totalStockCostSpent, setTotalStockCostSpent] = useState<number>(() => {
-    return parseFloat(localStorage.getItem('thc_total_stock_cost_spent') || '0');
-  });
   const [priceHistory, setPriceHistory] = useState<any[]>([]);
 
   // Expanding sale tickets
@@ -162,13 +164,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const handleThresholdChange = (val: number) => {
-    setLowStockThreshold(val);
-    localStorage.setItem('thc_low_stock_threshold', val.toString());
+    onThresholdChange(val);
   };
 
   const handleTotalCostChange = (val: number) => {
-    setTotalStockCostSpent(val);
-    localStorage.setItem('thc_total_stock_cost_spent', val.toString());
+    onTotalCostChange(val);
   };
 
   const loadYearlySummary = async () => {
