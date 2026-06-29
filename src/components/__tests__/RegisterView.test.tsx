@@ -34,7 +34,7 @@ describe('RegisterView Component', () => {
   });
 
   it('renders blank checkout register and fetches database info on mount', async () => {
-    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} />);
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
     
     expect(screen.getByText('Checkout Register')).toBeInTheDocument();
     expect(screen.getByText('Register is empty')).toBeInTheDocument();
@@ -48,12 +48,12 @@ describe('RegisterView Component', () => {
   it('adds scanned barcode item to the register cart', async () => {
     const handleClearScan = vi.fn();
     const { rerender } = render(
-      <RegisterView scannedBarcode="" onClearScan={handleClearScan} taxRate={0.00} />
+      <RegisterView scannedBarcode="" onClearScan={handleClearScan} taxRate={0.00} lowStockThreshold={10} />
     );
 
     // Simulate scanning barcode "1001"
     rerender(
-      <RegisterView scannedBarcode="1001" onClearScan={handleClearScan} taxRate={0.00} />
+      <RegisterView scannedBarcode="1001" onClearScan={handleClearScan} taxRate={0.00} lowStockThreshold={10} />
     );
 
     await waitFor(() => {
@@ -68,7 +68,7 @@ describe('RegisterView Component', () => {
   });
 
   it('handles quantity adjustments and bounds check', async () => {
-    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} />);
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
     
     // Force manual scan insert by scanning "1002"
     fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '1002' } });
@@ -98,7 +98,7 @@ describe('RegisterView Component', () => {
   });
 
   it('applies percentage and fixed price discount presets', async () => {
-    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} />);
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
     
     // Add "1001" ($10)
     fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '1001' } });
@@ -125,7 +125,7 @@ describe('RegisterView Component', () => {
   });
 
   it('completes checkout sale, calls Rust API, and triggers receipt popup', async () => {
-    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.05} />); // 5% tax
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.05} lowStockThreshold={10} />); // 5% tax
     
     // Add Sparkler Bomb ($10)
     fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '1001' } });
@@ -182,7 +182,7 @@ describe('RegisterView Component', () => {
       return Promise.resolve(null);
     });
 
-    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} />);
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
 
     // Add Case (Bulk) of Mega Rockets by typing bulk barcode
     fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '1003B' } });

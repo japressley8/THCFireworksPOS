@@ -54,6 +54,10 @@ describe('AdminView Component', () => {
     onSelectTheme: vi.fn(),
     onSaveCustomTheme: vi.fn(),
     onDeleteCustomTheme: vi.fn(),
+    lowStockThreshold: 10,
+    onThresholdChange: vi.fn(),
+    totalStockCostSpent: 0,
+    onTotalCostChange: vi.fn(),
   };
 
   beforeEach(() => {
