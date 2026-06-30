@@ -6,11 +6,14 @@ THC Fireworks POS (Thousand Hills Church POS) is a premium, local-first Point of
 
 ## ✨ Features
 
-* **🎨 Theme Options:** Optimized for indoor, outdoor, and low-light environments. Switch between **THC Mode** (default), **Dark Mode**, **Light Mode**, **Patriotic** (Red/White/Blue), and **High Contrast (Sunlight)** for maximum readability in direct outdoor sunlight.
+* **🎨 Theme Options:** Optimized for indoor, outdoor, and low-light environments. Switch between **THC Dark** (default), **THC Light**, **Patriotic** (Red/White/Blue), and **High Contrast (Sunlight)** for maximum readability in direct outdoor sunlight.
 * **💾 100% USB Portability:** The application database (`firework_pos.db`) is stored in the same folder as the app. Simply copy the portable executable file to a USB drive and plug it into any Windows computer.
 * **🚀 Keyboard Wedge Scanner Support:** Scans barcode entries instantly without needing to click into search inputs.
 * **📦 Catalog & Inventory Audit Ledger:** Real-time stock counts, bulk package pricing support, price adjustments, and a restricted-access warning popup.
-* **🖨️ Thermal Receipt Printing:** Integrated styling designed to print clean 80mm receipts automatically to standard thermal roll printers.
+* **💸 Sales Taxes & Rules:** Set up total-scope taxes or per-item specific taxes. Support for tax-exempt items.
+* **🖨️ Thermal Receipt Printing & Reprinting:** Integrated styling designed to print clean 80mm receipts automatically to standard thermal roll printers. Reprint and view any receipt directly from the Sales Ledger.
+* **📊 Analytics & Profit Margin Tracking:** Graph and compare Revenue vs Profit side-by-side in SVG charts. Keep track of net earnings by subtracting item wholesale costs.
+* **⚙️ Overselling Controls & Safe Deletion:** Toggle out-of-stock check rules or irreversibly delete database and backup files securely using random confirmation codes.
 * **🎆 Celebratory Feedback:** Colorful fireworks confetti animations play on successful transactions.
 * **🔄 Automatic Updates:** The app automatically checks for updates at startup (if connected to the internet) and opens your web browser to download the latest portable executable directly, keeping your USB drive updated.
 
@@ -43,7 +46,8 @@ THC Fireworks POS (Thousand Hills Church POS) is a premium, local-first Point of
 * Click **Admin View** in the top navigation bar.
 * Read and acknowledge the restricted access warning modal (which warns that changes to pricing and inventory must only be performed by qualified staff).
 * From here you can:
-  * Add, edit, or delete items and barcodes.
-  * Adjust current stock levels and unit costs.
-  * View daily and yearly sales summaries.
-  * Download/inspect the historical transaction ledger.
+  * Add, edit, or delete items, barcodes, discounts, and taxes.
+  * Toggle out-of-stock checkout permission controls in Settings.
+  * View daily and yearly sales summaries (compare Revenue vs Profit side-by-side).
+  * Reprint receipt details or inspect ledger entries.
+  * Clear SQLite database files and backup archives securely.

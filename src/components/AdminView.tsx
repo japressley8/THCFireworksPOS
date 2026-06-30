@@ -18,9 +18,13 @@ import {
   TrendingUp,
   Palette,
   Upload,
-  Settings
+  Settings,
+  Percent,
+  Printer,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { Item, Discount, Sale, Theme, YearSummary, DaySummary } from '../types';
+import { Item, Discount, Sale, Theme, YearSummary, DaySummary, Tax } from '../types';
 
 interface AdminViewProps {
   scannedBarcode: string;
@@ -55,7 +59,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isAdminUnlocked] = useState<boolean>(true);
 
   // Active sub-tab
-  const [subTab, setSubTab] = useState<'inventory' | 'discounts' | 'sales' | 'analytics' | 'settings'>('inventory');
+  const [subTab, setSubTab] = useState<'inventory' | 'discounts' | 'taxes' | 'sales' | 'analytics' | 'settings'>('inventory');
 
   // Analytics states
   const [analyticsMode, setAnalyticsMode] = useState<'yearly' | 'daily'>('yearly');
@@ -113,6 +117,40 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editItemBulkPrice, setEditItemBulkPrice] = useState<string>('');
   const [editItemBulkBarcode, setEditItemBulkBarcode] = useState<string>('');
   const [editItemBulkQuantity, setEditItemBulkQuantity] = useState<string>('');
+  const [editItemTaxId, setEditItemTaxId] = useState<string>('');
+
+  // Taxes states
+  const [taxes, setTaxes] = useState<Tax[]>([]);
+  const [newTaxName, setNewTaxName] = useState<string>('');
+  const [newTaxRate, setNewTaxRate] = useState<string>('');
+  const [newTaxScope, setNewTaxScope] = useState<'total' | 'item'>('total');
+  const [newItemTaxId, setNewItemTaxId] = useState<string>('');
+
+  // Out of stock oversell state
+  const [allowOversell, setAllowOversell] = useState<boolean>(false);
+
+  // Database delete states
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState<boolean>(false);
+  const [deleteConfirmationCode, setDeleteConfirmationCode] = useState<string>('');
+  const [deleteInputText, setDeleteInputText] = useState<string>('');
+
+  // Receipt reprint in sales ledger states
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
+  const [selectedReceiptSale, setSelectedReceiptSale] = useState<Sale | null>(null);
+
+  // Sizing & Metric states
+  const [yearlyChartMetric, setYearlyChartMetric] = useState<'revenue' | 'profit'>('revenue');
+  const [showBulkOptions, setShowBulkOptions] = useState<boolean>(false);
+  const [organizationName, setOrganizationName] = useState<string>('🎆 THC FIREWORKS 🎆');
+
+  const loadOrgSetting = async () => {
+    try {
+      const val = await invoke<string | null>('get_setting', { key: 'organization_name' });
+      if (val) setOrganizationName(val);
+    } catch (err) {
+      console.error('Failed to load organization_name setting:', err);
+    }
+  };
 
   // App Update states
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
@@ -158,6 +196,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
       loadDiscounts();
       loadSales();
       loadYearlySummary();
+      loadTaxes();
+      loadOversellSetting();
+      loadOrgSetting();
     }
   }, [isAdminUnlocked]);
 
@@ -285,6 +326,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
     e.target.value = ''; // Reset file input
   };
 
+  const handleUpdateParsedItem = (index: number, field: string, value: any) => {
+    setParsedCSVItems(prev => prev.map((item, idx) => {
+      if (idx === index) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
+  const isParsedItemValid = (item: any) => {
+    return (
+      item.name && item.name.trim() !== '' &&
+      item.barcode && item.barcode.trim() !== '' &&
+      item.price !== null && !isNaN(item.price) && item.price >= 0
+    );
+  };
+
   const parseXLSXRows = (rows: any[][]) => {
     if (rows.length === 0) return [];
     
@@ -294,9 +352,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const descIdx = headers.findIndex(h => h.includes('DESCRIPTION') || h.includes('NAME'));
     const upcIdx = headers.findIndex(h => h.includes('UPC') || h.includes('BARCODE'));
     const priceIdx = headers.findIndex(h => h.includes('RETAIL') || h.includes('PRICE'));
+    const stockIdx = headers.findIndex(h => h.includes('STOCK') || h.includes('NUM') || h.includes('SUPPLY'));
     
     if (descIdx === -1 || upcIdx === -1 || priceIdx === -1) {
-      throw new Error("Missing required columns. The sheet must have headers for 'DESCRIPTION', 'UPC', and 'RETAIL'.");
+      throw new Error("Missing required columns. The sheet must have headers for 'DESCRIPTION' (or 'NAME'), 'UPC' (or 'BARCODE'), and 'RETAIL' (or 'PRICE').");
     }
     
     const importedItems = [];
@@ -304,16 +363,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
       const row = rows[i];
       if (!row || row.length === 0) continue;
       
-      const name = String(row[descIdx] || '').trim();
-      const barcode = String(row[upcIdx] || '').trim();
-      const priceStr = String(row[priceIdx] || '').trim().replace(/[^0-9.]/g, '');
-      const price = parseFloat(priceStr);
+      const name = descIdx !== -1 && row[descIdx] !== undefined && row[descIdx] !== null ? String(row[descIdx]).trim() : '';
+      const barcode = upcIdx !== -1 && row[upcIdx] !== undefined && row[upcIdx] !== null ? String(row[upcIdx]).trim() : '';
       
-      if (name && barcode && !isNaN(price)) {
+      let price: number | null = null;
+      if (priceIdx !== -1 && row[priceIdx] !== undefined && row[priceIdx] !== null) {
+        const val = parseFloat(String(row[priceIdx]).replace(/[^0-9.]/g, ''));
+        if (!isNaN(val)) price = val;
+      }
+      
+      let stock: number | null = null;
+      if (stockIdx !== -1 && row[stockIdx] !== undefined && row[stockIdx] !== null) {
+        const val = parseInt(String(row[stockIdx]).replace(/[^0-9-]/g, ''), 10);
+        if (!isNaN(val)) stock = val;
+      }
+      
+      if (name || barcode || price !== null || stock !== null) {
         importedItems.push({
-          barcode,
-          name,
-          price
+          barcode: barcode || '',
+          name: name || '',
+          price: price,
+          stock: stock
         });
       }
     }
@@ -330,9 +400,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const descIdx = headers.findIndex(h => h.includes('DESCRIPTION') || h.includes('NAME'));
     const upcIdx = headers.findIndex(h => h.includes('UPC') || h.includes('BARCODE'));
     const priceIdx = headers.findIndex(h => h.includes('RETAIL') || h.includes('PRICE'));
+    const stockIdx = headers.findIndex(h => h.includes('STOCK') || h.includes('NUM') || h.includes('SUPPLY'));
     
     if (descIdx === -1 || upcIdx === -1 || priceIdx === -1) {
-      throw new Error("Missing required columns. The CSV must have headers for 'DESCRIPTION', 'UPC', and 'RETAIL'.");
+      throw new Error("Missing required columns. The CSV must have headers for 'DESCRIPTION' (or 'NAME'), 'UPC' (or 'BARCODE'), and 'RETAIL' (or 'PRICE').");
     }
     
     const importedItems = [];
@@ -359,16 +430,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
       
       if (cols.length <= Math.max(descIdx, upcIdx, priceIdx)) continue;
       
-      const name = cols[descIdx].replace(/^["']|["']$/g, '');
-      const barcode = cols[upcIdx].replace(/^["']|["']$/g, '');
-      const priceStr = cols[priceIdx].replace(/^["']|["']$/g, '').replace(/[^0-9.]/g, '');
-      const price = parseFloat(priceStr);
+      const name = descIdx !== -1 && cols[descIdx] ? cols[descIdx].replace(/^["']|["']$/g, '').trim() : '';
+      const barcode = upcIdx !== -1 && cols[upcIdx] ? cols[upcIdx].replace(/^["']|["']$/g, '').trim() : '';
       
-      if (name && barcode && !isNaN(price)) {
+      let price: number | null = null;
+      if (priceIdx !== -1 && cols[priceIdx] !== undefined && cols[priceIdx] !== '') {
+        const val = parseFloat(cols[priceIdx].replace(/^["']|["']$/g, '').replace(/[^0-9.]/g, ''));
+        if (!isNaN(val)) price = val;
+      }
+      
+      let stock: number | null = null;
+      if (stockIdx !== -1 && cols[stockIdx] !== undefined && cols[stockIdx] !== '') {
+        const val = parseInt(cols[stockIdx].replace(/^["']|["']$/g, '').replace(/[^0-9-]/g, ''), 10);
+        if (!isNaN(val)) stock = val;
+      }
+      
+      if (name || barcode || price !== null || stock !== null) {
         importedItems.push({
-          barcode,
-          name,
-          price
+          barcode: barcode || '',
+          name: name || '',
+          price: price,
+          stock: stock
         });
       }
     }
@@ -382,10 +464,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
     
     try {
       const existingItems = await invoke<Item[]>('get_items');
-      const stockVal = importDefaultStock.trim() === '' ? null : parseInt(importDefaultStock, 10);
+      const defaultStockVal = importDefaultStock.trim() === '' ? null : parseInt(importDefaultStock, 10);
       
       for (const item of parsedCSVItems) {
+        if (!isParsedItemValid(item)) {
+          throw new Error(`Cannot import: product "${item.name || 'Unnamed'}" has missing or invalid values.`);
+        }
         const existing = existingItems.find(i => i.barcode === item.barcode);
+        const stockVal = item.stock !== null ? item.stock : defaultStockVal;
         
         if (existing) {
           if (importDuplicatePolicy === 'skip') {
@@ -394,28 +480,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
           } else {
             await invoke('update_item_details', {
               id: existing.id,
-              name: existing.name,
+              name: item.name.trim(),
               price: item.price,
               stockQuantity: stockVal,
               notes: existing.notes || null,
               bulkPrice: existing.bulk_price !== undefined ? existing.bulk_price : null,
               bulkBarcode: existing.bulk_barcode || null,
               bulkQuantity: existing.bulk_quantity !== undefined ? existing.bulk_quantity : null,
-              unitCost: null
+              unitCost: null,
+              taxId: existing.tax_id !== undefined ? existing.tax_id : null
             });
             successCount++;
           }
         } else {
           await invoke('add_item', {
-            barcode: item.barcode,
-            name: item.name,
+            barcode: item.barcode.trim(),
+            name: item.name.trim(),
             price: item.price,
             stockQuantity: stockVal,
             notes: null,
             bulkPrice: null,
             bulkBarcode: null,
             bulkQuantity: null,
-            unitCost: null
+            unitCost: null,
+            taxId: null
           });
           successCount++;
         }
@@ -488,7 +576,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         bulkPrice,
         bulkBarcode: newItemBulkBarcode.trim() === '' ? null : newItemBulkBarcode.trim(),
         bulkQuantity,
-        unitCost: null
+        unitCost: null,
+        taxId: newItemTaxId === '' ? null : parseInt(newItemTaxId, 10)
       });
 
       triggerNotice(`Successfully added "${newItemName}"`, 'success');
@@ -500,6 +589,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setNewItemBulkPrice('');
       setNewItemBulkBarcode('');
       setNewItemBulkQuantity('');
+      setNewItemTaxId('');
       loadInventory();
     } catch (err) {
       triggerNotice('Failed to add product: ' + err, 'error');
@@ -532,7 +622,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         bulkPrice,
         bulkBarcode: editItemBulkBarcode.trim() === '' ? null : editItemBulkBarcode.trim(),
         bulkQuantity,
-        unitCost: null
+        unitCost: null,
+        taxId: editItemTaxId === '' ? null : parseInt(editItemTaxId, 10)
       });
 
       triggerNotice('Product details updated', 'success');
@@ -587,6 +678,60 @@ export const AdminView: React.FC<AdminViewProps> = ({
       loadDiscounts();
     } catch (err) {
       triggerNotice('Failed to delete discount: ' + err, 'error');
+    }
+  };
+
+  const loadTaxes = async () => {
+    try {
+      const list = await invoke<Tax[]>('get_taxes');
+      setTaxes(list || []);
+    } catch (err) {
+      triggerNotice('Failed to load taxes: ' + err, 'error');
+    }
+  };
+
+  const loadOversellSetting = async () => {
+    try {
+      const val = await invoke<string | null>('get_setting', { key: 'allow_oversell' });
+      setAllowOversell(val === 'true');
+    } catch (err) {
+      console.error('Failed to load allow_oversell setting:', err);
+    }
+  };
+
+  const generateDeleteCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const fullCode = `DELETE-ALL-DATA-${code}`;
+    setDeleteConfirmationCode(fullCode);
+    setDeleteInputText('');
+  };
+
+  const handleApplyTax = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rate = parseFloat(newTaxRate);
+    if (!newTaxName.trim() || isNaN(rate) || rate < 0) {
+      triggerNotice('Please specify a valid tax name and positive rate', 'error');
+      return;
+    }
+
+    try {
+      await invoke('add_tax', {
+        name: newTaxName.trim(),
+        rate,
+        scope: newTaxScope
+      });
+
+      triggerNotice(`Successfully created tax "${newTaxName}"`, 'success');
+      setNewTaxName('');
+      setNewTaxRate('');
+      setNewTaxScope('total');
+      loadTaxes();
+    } catch (err) {
+      triggerNotice('Failed to create tax: ' + err, 'error');
     }
   };
 
@@ -647,6 +792,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
             }`}
           >
             <Tag className="h-4 w-4" /> Discounts
+          </button>
+          <button
+            id="btn-admin-tab-taxes"
+            onClick={() => setSubTab('taxes')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all ${
+              subTab === 'taxes' 
+                ? 'bg-custom-primary text-white shadow-lg' 
+                : 'text-custom-muted hover:text-custom-text'
+            }`}
+          >
+            <Percent className="h-4 w-4" /> Taxes
           </button>
           <button
             id="btn-admin-tab-sales"
@@ -766,43 +922,70 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     />
                   </div>
 
-                  <div className="border-t border-custom-border/40 pt-3.5 space-y-3">
-                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-custom-accent">Optional Bulk Selling</span>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Bulk Barcode (UPC)</label>
-                        <input 
-                          type="text" 
-                          placeholder="e.g. 1002422"
-                          value={newItemBulkBarcode}
-                          onChange={e => setNewItemBulkBarcode(e.target.value)}
-                          className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Bulk Price ($)</label>
-                        <input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="e.g. 99.99"
-                          value={newItemBulkPrice}
-                          onChange={e => setNewItemBulkPrice(e.target.value)}
-                          className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40"
-                        />
-                      </div>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Sales Tax Category</label>
+                    <select
+                      id="admin-new-tax-id"
+                      value={newItemTaxId}
+                      onChange={e => setNewItemTaxId(e.target.value)}
+                      className="w-full px-4 py-3 bg-custom-input border border-custom-border focus:border-custom-primary text-custom-text rounded-xl focus:outline-none text-sm cursor-pointer"
+                    >
+                      <option value="">Use Total Taxes (Default)</option>
+                      <option value="-1">Tax Exempt (0%)</option>
+                      { (taxes || []).filter(t => t.scope === 'item').map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                      ))}
+                    </select>
+                  </div>
 
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Items Per Case</label>
-                      <input 
-                        type="number" 
-                        placeholder="e.g. 24"
-                        value={newItemBulkQuantity}
-                        onChange={e => setNewItemBulkQuantity(e.target.value)}
-                        className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40"
-                      />
-                    </div>
+                  <div className="border-t border-custom-border/40 pt-3.5 space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkOptions(!showBulkOptions)}
+                      className="w-full flex justify-between items-center text-left py-1 text-custom-accent hover:text-custom-accent/80 transition-all font-bold text-xs select-none"
+                    >
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider">Bulk Options</span>
+                      {showBulkOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                    
+                    {showBulkOptions && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Bulk Barcode (UPC)</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. 1002422"
+                              value={newItemBulkBarcode}
+                              onChange={e => setNewItemBulkBarcode(e.target.value)}
+                              className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40 font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Bulk Price ($)</label>
+                            <input 
+                              type="number" 
+                              step="0.01" 
+                              placeholder="e.g. 99.99"
+                              value={newItemBulkPrice}
+                              onChange={e => setNewItemBulkPrice(e.target.value)}
+                              className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40 font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold uppercase text-custom-muted mb-1">Items Per Case</label>
+                          <input 
+                            type="number" 
+                            placeholder="e.g. 24"
+                            value={newItemBulkQuantity}
+                            onChange={e => setNewItemBulkQuantity(e.target.value)}
+                            className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono text-xs rounded-lg focus:outline-none placeholder:text-custom-muted/40 font-mono"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <button 
@@ -821,7 +1004,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <Upload className="h-5 w-5 text-custom-accent" /> CSV / Excel Inventory Import Wizard
                 </h3>
 
-                <div className="space-y-4.5">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
                       Select Inventory CSV or Excel File
@@ -832,8 +1015,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       onChange={handleCSVFileSelect}
                       className="w-full text-xs text-custom-text file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-custom-primary/20 file:text-custom-primary hover:file:bg-custom-primary/30 file:cursor-pointer"
                     />
-                    <p className="text-[10px] text-custom-muted mt-1.5">
-                      Expects headers: <code className="font-mono text-custom-accent">DESCRIPTION</code>, <code className="font-mono text-custom-accent">UPC</code>, and <code className="font-mono text-custom-accent">RETAIL</code> (or <code className="font-mono text-custom-accent">PRICE</code>).
+                    <p className="text-[10px] text-custom-muted mt-1.5 leading-normal">
+                      Expects headers: <code className="font-mono text-custom-accent">DESCRIPTION</code> (or <code className="font-mono text-custom-accent">NAME</code>), <code className="font-mono text-custom-accent">UPC</code> (or <code className="font-mono text-custom-accent">BARCODE</code>), <code className="font-mono text-custom-accent">RETAIL</code> (or <code className="font-mono text-custom-accent">PRICE</code>), and optional <code className="font-mono text-custom-accent">STOCK</code> (or <code className="font-mono text-custom-accent">NUM</code>/<code className="font-mono text-custom-accent">SUPPLY</code>).
                     </p>
                   </div>
 
@@ -879,26 +1062,85 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </select>
                       </div>
 
-                      {/* Preview table */}
-                      <div className="max-h-24 overflow-y-auto text-[10px] bg-black/20 rounded-lg p-2 border border-custom-border/30">
-                        {parsedCSVItems.slice(0, 3).map((item, idx) => (
-                          <div key={idx} className="flex justify-between border-b border-custom-border/20 py-1 last:border-0">
-                            <span className="truncate max-w-[120px] font-semibold text-custom-text">{item.name}</span>
-                            <span className="font-mono text-custom-accent">${item.price.toFixed(2)}</span>
-                          </div>
-                        ))}
-                        {parsedCSVItems.length > 3 && (
-                          <div className="text-center pt-1 text-[9px] text-custom-muted">
-                            + {parsedCSVItems.length - 3} more items...
-                          </div>
-                        )}
+                      {/* Interactive Editable Table */}
+                      <div className="max-h-64 overflow-auto border border-custom-border/40 rounded-xl bg-custom-input/20 p-2">
+                        <table className="w-full text-left text-[10px]">
+                          <thead>
+                            <tr className="bg-custom-header text-custom-muted uppercase tracking-wider font-extrabold border-b border-custom-border/30">
+                              <th className="py-1.5 px-2">Name</th>
+                              <th className="py-1.5 px-2">Barcode</th>
+                              <th className="py-1.5 px-2 w-18">Price ($)</th>
+                              <th className="py-1.5 px-2 w-18">Stock</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-custom-border/20 text-custom-text">
+                            {parsedCSVItems.map((item, idx) => {
+                              const isNameInvalid = !item.name || item.name.trim() === '';
+                              const isBarcodeInvalid = !item.barcode || item.barcode.trim() === '';
+                              const isPriceInvalid = item.price === null || isNaN(item.price) || item.price < 0;
+                              return (
+                                <tr key={idx} className="hover:bg-white/5">
+                                  <td className="py-1 px-1">
+                                    <input 
+                                      type="text" 
+                                      value={item.name || ''} 
+                                      onChange={e => handleUpdateParsedItem(idx, 'name', e.target.value)}
+                                      className={`w-full px-2 py-1 bg-custom-input border rounded text-[11px] text-custom-text focus:outline-none focus:ring-1 focus:ring-custom-primary ${
+                                        isNameInvalid ? 'border-red-500/50 bg-red-950/10' : 'border-custom-border/50'
+                                      }`}
+                                      placeholder="Missing Name"
+                                    />
+                                  </td>
+                                  <td className="py-1 px-1">
+                                    <input 
+                                      type="text" 
+                                      value={item.barcode || ''} 
+                                      onChange={e => handleUpdateParsedItem(idx, 'barcode', e.target.value)}
+                                      className={`w-full px-2 py-1 bg-custom-input border rounded text-[11px] text-custom-text font-mono focus:outline-none focus:ring-1 focus:ring-custom-primary ${
+                                        isBarcodeInvalid ? 'border-red-500/50 bg-red-950/10' : 'border-custom-border/50'
+                                      }`}
+                                      placeholder="Missing UPC"
+                                    />
+                                  </td>
+                                  <td className="py-1 px-1">
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={item.price === null ? '' : item.price} 
+                                      onChange={e => handleUpdateParsedItem(idx, 'price', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                      className={`w-full px-2 py-1 bg-custom-input border rounded text-[11px] text-custom-text font-mono focus:outline-none focus:ring-1 focus:ring-custom-primary ${
+                                        isPriceInvalid ? 'border-red-500/50 bg-red-950/10' : 'border-custom-border/50'
+                                      }`}
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                  <td className="py-1 px-1">
+                                    <input 
+                                      type="number" 
+                                      placeholder="Default"
+                                      value={item.stock === null ? '' : item.stock} 
+                                      onChange={e => handleUpdateParsedItem(idx, 'stock', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                                      className="w-full px-2 py-1 bg-custom-input border border-custom-border/50 rounded text-[11px] text-custom-text font-mono focus:outline-none focus:ring-1 focus:ring-custom-primary"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
+
+                      {parsedCSVItems.some(item => !isParsedItemValid(item)) && (
+                        <span className="text-[10px] text-red-500 font-bold block bg-red-500/10 border border-red-500/25 p-2.5 rounded-lg leading-normal">
+                          ⚠️ Some products have missing names, barcodes, or prices. Please fill in the highlighted fields to enable database import.
+                        </span>
+                      )}
 
                       <button
                         type="button"
                         onClick={executeCSVImport}
-                        disabled={isImporting}
-                        className="w-full py-3 bg-custom-primary hover:bg-custom-primary-hover text-white text-xs font-bold rounded-xl shadow active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                        disabled={isImporting || parsedCSVItems.some(item => !isParsedItemValid(item))}
+                        className="w-full py-3 bg-custom-primary hover:bg-custom-primary-hover disabled:bg-custom-input disabled:text-custom-muted text-white text-xs font-bold rounded-xl shadow active:scale-95 transition-all flex items-center justify-center gap-1.5"
                       >
                         {isImporting ? 'Importing...' : 'Commit Import To Database'}
                       </button>
@@ -1015,6 +1257,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                       className="w-full px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text font-mono focus:outline-none" 
                                     />
                                   </div>
+                                  <div>
+                                    <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Sales Tax Category</label>
+                                    <select
+                                      value={editItemTaxId}
+                                      onChange={e => setEditItemTaxId(e.target.value)}
+                                      className="w-full px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text focus:outline-none font-bold"
+                                    >
+                                      <option value="">Use Total Taxes (Default)</option>
+                                      <option value="-1">Tax Exempt (0%)</option>
+                                      {(taxes || []).filter(t => t.scope === 'item').map(t => (
+                                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
                               ) : (
                                 <>
@@ -1027,6 +1283,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                   {item.bulk_barcode && (
                                     <span className="block text-[10px] text-custom-muted/90 mt-1 font-sans font-normal">
                                       Bulk Case: {item.bulk_quantity} units at ${item.bulk_price?.toFixed(2)} (UPC: {item.bulk_barcode})
+                                    </span>
+                                  )}
+                                  {(item.tax_id !== null && item.tax_id !== undefined) && (
+                                    <span className="block text-[10px] text-custom-muted mt-1 font-sans font-normal">
+                                      Tax: {item.tax_id === -1 ? 'Tax Exempt (0%)' : ((taxes || []).find(t => t.id === item.tax_id)?.name ? `${(taxes || []).find(t => t.id === item.tax_id)?.name} (${(taxes || []).find(t => t.id === item.tax_id)?.rate}%)` : 'Item Tax Preset')}
                                     </span>
                                   )}
                                 </>
@@ -1104,6 +1365,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                       setEditItemBulkBarcode(item.bulk_barcode || '');
                                       setEditItemBulkPrice(item.bulk_price !== null && item.bulk_price !== undefined ? item.bulk_price.toString() : '');
                                       setEditItemBulkQuantity(item.bulk_quantity !== null && item.bulk_quantity !== undefined ? item.bulk_quantity.toString() : '');
+                                      setEditItemTaxId(item.tax_id !== null && item.tax_id !== undefined ? item.tax_id.toString() : '');
                                     }}
                                     className="px-3.5 py-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-text text-xs font-bold rounded-lg transition-all"
                                   >
@@ -1141,7 +1403,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <Tag className="h-5 w-5 text-custom-accent" /> Create Preset Discount
                 </h3>
 
-                <form onSubmit={handleAddDiscount} className="space-y-4.5">
+                <form onSubmit={handleAddDiscount} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Discount Name</label>
                     <input 
@@ -1204,7 +1466,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <button 
                     id="btn-admin-add-discount-submit"
                     type="submit"
-                    className="w-full py-4.5 bg-custom-primary hover:bg-custom-primary-hover active:scale-97 text-white font-extrabold text-base rounded-xl transition-all shadow border border-custom-border"
+                    className="w-full py-4 bg-custom-primary hover:bg-custom-primary-hover active:scale-97 text-white font-extrabold text-base rounded-xl transition-all shadow border border-custom-border"
                   >
                     Add Discount Preset
                   </button>
@@ -1242,6 +1504,144 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <button
                         id={`btn-delete-discount-${disc.id}`}
                         onClick={() => handleDeleteDiscount(disc.id)}
+                        className="p-3 bg-custom-input border border-custom-border hover:bg-red-900/30 text-custom-muted hover:text-red-400 rounded-xl transition-all shrink-0 ml-2"
+                        title="Delete Preset"
+                      >
+                        <Trash2 className="h-4.5 w-4.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB TAXES CONFIG */}
+        {subTab === 'taxes' && (
+          <div className="h-full flex flex-col xl:flex-row gap-6 min-h-0">
+            {/* Tax Creator */}
+            <div className="w-full xl:w-96 shrink-0">
+              <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg flex flex-col space-y-4">
+                <h3 className="text-lg font-bold text-custom-text flex items-center gap-2 pb-2 border-b border-custom-border">
+                  <Percent className="h-5 w-5 text-custom-accent" /> Create Tax Rate
+                </h3>
+
+                <form onSubmit={handleApplyTax} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Tax Name</label>
+                    <input 
+                      id="admin-tax-name"
+                      type="text"
+                      placeholder="e.g. State Sales Tax"
+                      value={newTaxName}
+                      onChange={e => setNewTaxName(e.target.value)}
+                      className="w-full px-4 py-3 bg-custom-input border border-custom-border focus:border-custom-primary text-custom-text rounded-xl focus:outline-none text-base placeholder:text-custom-muted/50"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Tax Rate (%)</label>
+                    <input 
+                      id="admin-tax-rate"
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g. 7.00"
+                      value={newTaxRate}
+                      onChange={e => setNewTaxRate(e.target.value)}
+                      className="w-full px-4 py-3 bg-custom-input border border-custom-border focus:border-custom-primary text-custom-text rounded-xl focus:outline-none font-mono text-base placeholder:text-custom-muted/50"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-2">Tax Scope</label>
+                    <div className="grid grid-cols-2 gap-2 bg-custom-input border border-custom-border rounded-xl p-1 shadow-inner">
+                      <button
+                        id="admin-tax-scope-total"
+                        type="button"
+                        onClick={() => setNewTaxScope('total')}
+                        className={`py-2 text-center rounded-lg font-bold text-sm transition-all ${
+                          newTaxScope === 'total' 
+                            ? 'bg-custom-primary text-white shadow shadow-black/20' 
+                            : 'text-custom-muted hover:text-custom-text'
+                        }`}
+                      >
+                        Total (All Items)
+                      </button>
+                      <button
+                        id="admin-tax-scope-item"
+                        type="button"
+                        onClick={() => setNewTaxScope('item')}
+                        className={`py-2 text-center rounded-lg font-bold text-sm transition-all ${
+                          newTaxScope === 'item' 
+                            ? 'bg-custom-primary text-white shadow shadow-black/20' 
+                            : 'text-custom-muted hover:text-custom-text'
+                        }`}
+                      >
+                        Per-Item Only
+                      </button>
+                    </div>
+                  </div>
+
+                  <button 
+                    id="btn-admin-add-tax-submit"
+                    type="submit"
+                    className="w-full py-4 bg-custom-primary hover:bg-custom-primary-hover active:scale-97 text-white font-extrabold text-base rounded-xl transition-all shadow border border-custom-border"
+                  >
+                    Add Tax Preset
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Taxes List */}
+            <div className="flex-1 glass-panel border-custom-border rounded-2xl shadow-lg flex flex-col min-h-0 overflow-hidden">
+              <div className="p-4 bg-custom-header border-b border-custom-border flex items-center justify-between">
+                <span className="font-bold text-custom-text">Active Taxes</span>
+                <span className="text-xs bg-custom-input text-custom-muted border border-custom-border px-2 py-0.5 rounded font-bold font-mono">
+                  {(taxes || []).length} Presets Available
+                </span>
+              </div>
+
+              <div className="flex-1 overflow-auto p-6 space-y-3 max-w-2xl">
+                {(taxes || []).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center text-custom-muted py-16">
+                    <Percent className="h-8 w-8 text-custom-muted mb-3" />
+                    No tax rates defined
+                  </div>
+                ) : (
+                  (taxes || []).map(tax => (
+                    <div 
+                      key={tax.id} 
+                      className="bg-custom-input/40 border border-custom-border rounded-xl p-4 flex items-center justify-between shadow shadow-black/20"
+                    >
+                      <div className="min-w-0 pr-4 flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <span className="font-bold text-custom-text text-base block">{tax.name}</span>
+                          <span className="text-xs text-custom-muted uppercase tracking-wider font-semibold">
+                            Scope: {tax.scope === 'total' ? 'Total (All Items)' : 'Per-Item Only'}
+                          </span>
+                        </div>
+                        <span className="text-sm font-mono font-bold text-custom-accent bg-custom-input border border-custom-border px-3 py-1 rounded w-max select-all">
+                          {tax.rate}% TAX
+                        </span>
+                      </div>
+                      <button
+                        id={`btn-delete-tax-${tax.id}`}
+                        onClick={async () => {
+                          if (confirm(`Delete tax preset "${tax.name}"?`)) {
+                            try {
+                              await invoke('delete_tax', { id: tax.id });
+                              triggerNotice(`Deleted tax preset "${tax.name}"`, 'success');
+                              loadTaxes();
+                              loadInventory();
+                            } catch (err) {
+                              triggerNotice('Failed to delete tax: ' + err, 'error');
+                            }
+                          }
+                        }}
                         className="p-3 bg-custom-input border border-custom-border hover:bg-red-900/30 text-custom-muted hover:text-red-400 rounded-xl transition-all shrink-0 ml-2"
                         title="Delete Preset"
                       >
@@ -1333,8 +1733,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             <tr>
                               <td colSpan={7} className="bg-custom-input/40 px-8 py-4 border-b border-custom-border">
                                 <div className="border border-custom-border rounded-xl overflow-hidden max-w-2xl shadow-inner">
-                                  <div className="bg-custom-header px-4 py-2 border-b border-custom-border text-xs font-bold text-custom-muted uppercase tracking-wider">
-                                    Sold Items Receipt Detail
+                                  <div className="bg-custom-header px-4 py-2 border-b border-custom-border text-xs font-bold text-custom-muted uppercase tracking-wider flex items-center justify-between">
+                                    <span>Sold Items Receipt Detail</span>
+                                    <button
+                                      id={`btn-ledger-print-receipt-${sale.id}`}
+                                      onClick={() => {
+                                        setSelectedReceiptSale(sale);
+                                        setShowReceiptModal(true);
+                                      }}
+                                      className="px-2.5 py-1 bg-custom-primary hover:bg-custom-primary-hover text-white text-[10px] font-extrabold rounded flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                                    >
+                                      <Printer className="h-3 w-3" /> View & Print Receipt
+                                    </button>
                                   </div>
                                   <table className="w-full text-left text-xs font-semibold">
                                     <thead>
@@ -1450,7 +1860,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-xl border border-custom-border bg-black/20">
+                <div className="overflow-x-auto rounded-xl border border-custom-border bg-custom-input/20">
                   {isLoadingSummary ? (
                     <div className="flex items-center justify-center h-48 text-custom-muted font-bold text-sm">
                       Querying Ledger Statistics...
@@ -1463,13 +1873,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     ) : (
                       <table className="w-full text-left border-collapse text-xs font-semibold">
                         <thead>
-                          <tr className="bg-black/40 text-custom-muted border-b border-custom-border uppercase tracking-wider text-[10px]">
+                          <tr className="bg-custom-header text-custom-muted border-b border-custom-border uppercase tracking-wider text-[10px]">
                             <th className="py-3 px-4">Sales Year</th>
                             <th className="py-3 px-4 text-right">Sales Completed</th>
                             <th className="py-3 px-4 text-right">Subtotal Revenue</th>
                             <th className="py-3 px-4 text-right">Discounts Applied</th>
                             <th className="py-3 px-4 text-right">Tax Collected</th>
                             <th className="py-3 px-4 text-right">Grand Total Sales</th>
+                            <th className="py-3 px-4 text-right">Net Profit</th>
                             <th className="py-3 px-4 text-right">Avg Sale Size</th>
                           </tr>
                         </thead>
@@ -1478,11 +1889,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             <tr key={summary.year} className="hover:bg-white/5 transition-colors">
                               <td className="py-3.5 px-4 font-bold text-sm text-custom-accent">{summary.year}</td>
                               <td className="py-3.5 px-4 text-right font-mono">{summary.ticket_count}</td>
-                              <td className="py-3.5 px-4 text-right font-mono">${summary.subtotal.toFixed(2)}</td>
-                              <td className="py-3.5 px-4 text-right font-mono text-red-400">-${summary.discount_total.toFixed(2)}</td>
-                              <td className="py-3.5 px-4 text-right font-mono">${summary.tax_total.toFixed(2)}</td>
-                              <td className="py-3.5 px-4 text-right font-mono text-emerald-400 font-bold text-sm">${summary.total_sales.toFixed(2)}</td>
-                              <td className="py-3.5 px-4 text-right font-mono">${summary.avg_ticket_value.toFixed(2)}</td>
+                              <td className="py-3.5 px-4 text-right font-mono">${(summary.subtotal || 0).toFixed(2)}</td>
+                              <td className="py-3.5 px-4 text-right font-mono text-red-400">-${(summary.discount_total || 0).toFixed(2)}</td>
+                              <td className="py-3.5 px-4 text-right font-mono">${(summary.tax_total || 0).toFixed(2)}</td>
+                              <td className="py-3.5 px-4 text-right font-mono text-emerald-400 font-bold text-sm">${(summary.total_sales || 0).toFixed(2)}</td>
+                              <td className="py-3.5 px-4 text-right font-mono text-[#10b981] font-bold text-sm">${(summary.profit || 0).toFixed(2)}</td>
+                              <td className="py-3.5 px-4 text-right font-mono">${(summary.avg_ticket_value || 0).toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1496,7 +1908,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     ) : (
                       <table className="w-full text-left border-collapse text-xs font-semibold">
                         <thead>
-                          <tr className="bg-black/40 text-custom-muted border-b border-custom-border uppercase tracking-wider text-[10px]">
+                          <tr className="bg-custom-header text-custom-muted border-b border-custom-border uppercase tracking-wider text-[10px]">
                             <th className="py-3 px-4">Sales Date</th>
                             <th className="py-3 px-4 text-right">Sales Completed</th>
                             <th className="py-3 px-4 text-right">Grand Total Sales</th>
@@ -1522,12 +1934,40 @@ export const AdminView: React.FC<AdminViewProps> = ({
               {/* Visual SVG Chart Column */}
               {((analyticsMode === 'yearly' && (yearlySummaries || []).length > 0) || (analyticsMode === 'daily' && (dailySummaries || []).length > 0)) && (
                 <div className="w-full xl:w-96 glass-panel rounded-2xl p-5 shadow-lg shrink-0 flex flex-col justify-center">
-                  <h3 className="text-base font-bold text-custom-text mb-4 border-b border-custom-border pb-3 flex items-center gap-2 shrink-0">
-                    <Archive className="h-4.5 w-4.5 text-custom-accent" /> Revenue Comparison Graph
-                  </h3>
+                  <div className="flex justify-between items-center mb-4 border-b border-custom-border pb-3 shrink-0">
+                    <h3 className="text-base font-bold text-custom-text flex items-center gap-2">
+                      <Archive className="h-4.5 w-4.5 text-custom-accent" /> {analyticsMode === 'yearly' ? (yearlyChartMetric === 'revenue' ? 'Revenue Graph' : 'Profit Graph') : 'Revenue Graph'}
+                    </h3>
+                    {analyticsMode === 'yearly' && (
+                      <div className="flex bg-custom-input border border-custom-border rounded-lg p-0.5 shadow-inner select-none">
+                        <button
+                          type="button"
+                          onClick={() => setYearlyChartMetric('revenue')}
+                          className={`px-2.5 py-1 text-center rounded-md font-bold text-[9px] uppercase transition-all cursor-pointer ${
+                            yearlyChartMetric === 'revenue' 
+                              ? 'bg-custom-primary text-white shadow shadow-black/20' 
+                              : 'text-custom-muted hover:text-custom-text'
+                          }`}
+                        >
+                          Revenue
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setYearlyChartMetric('profit')}
+                          className={`px-2.5 py-1 text-center rounded-md font-bold text-[9px] uppercase transition-all cursor-pointer ${
+                            yearlyChartMetric === 'profit' 
+                              ? 'bg-custom-primary text-white shadow shadow-black/20' 
+                              : 'text-custom-muted hover:text-custom-text'
+                          }`}
+                        >
+                          Profit
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Inline SVG Chart */}
-                  <div className="bg-black/35 rounded-xl border border-custom-border p-4 flex flex-col justify-center items-center">
+                  <div className="bg-custom-input/20 rounded-xl border border-custom-border p-4 flex flex-col justify-center items-center">
                     <svg width="100%" height="240" viewBox="0 0 320 240" className="overflow-visible">
                       {/* Y Axis line */}
                       <line x1="45" y1="20" x2="45" y2="190" stroke="var(--color-border)" strokeWidth="1.5" />
@@ -1536,60 +1976,120 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                       {/* Chart Bars */}
                       {(() => {
-                        const chartData = analyticsMode === 'yearly' 
-                          ? (yearlySummaries || []) 
-                          : (dailySummaries || []).slice(0, 5).reverse();
-                        
-                        const maxVal = Math.max(...chartData.map(s => s.total_sales), 1);
-                        return chartData.map((summary, idx) => {
-                          const barHeight = (summary.total_sales / maxVal) * 150;
-                          const gap = chartData.length > 3 ? 45 : 80;
-                          const startX = chartData.length > 3 ? 55 : 80;
-                          const x = startX + (idx * gap);
-                          const y = 190 - barHeight;
-                          const label = analyticsMode === 'yearly' 
-                            ? (summary as YearSummary).year 
-                            : (summary as DaySummary).date.slice(5); // Show MM-DD for daily
+                        if (analyticsMode === 'yearly') {
+                          const isRev = yearlyChartMetric === 'revenue';
+                          const grandTotalRevenue = yearlySummaries.reduce((sum, s) => sum + s.total_sales, 0);
+                          
+                          const getProfitVal = (summary: any) => {
+                            const dbProfit = summary.profit;
+                            const totalCogsInDb = yearlySummaries.reduce((sum, s) => sum + (s.total_sales - s.profit), 0);
+                            if (totalCogsInDb === 0 && totalStockCostSpent > 0) {
+                              return summary.total_sales - (grandTotalRevenue > 0 ? (summary.total_sales / grandTotalRevenue) * totalStockCostSpent : 0);
+                            }
+                            return dbProfit;
+                          };
 
-                          return (
-                            <g key={idx} className="group">
-                              {/* Bar segment */}
-                              <rect
-                                x={x}
-                                y={y}
-                                width={chartData.length > 3 ? "24" : "40"}
-                                height={barHeight}
-                                fill="var(--color-primary)"
-                                rx="4"
-                                className="transition-all duration-300 hover:opacity-85"
-                              />
-                              {/* Value label */}
-                              <text
-                                x={x + (chartData.length > 3 ? 12 : 20)}
-                                y={y - 8}
-                                textAnchor="middle"
-                                fill="var(--color-accent)"
-                                className="font-mono text-[8px] font-bold"
-                              >
-                                ${Math.round(summary.total_sales)}
-                              </text>
-                              {/* Axis Label */}
-                              <text
-                                x={x + (chartData.length > 3 ? 12 : 20)}
-                                y="208"
-                                textAnchor="middle"
-                                fill="var(--color-text)"
-                                className="text-[9px] font-bold font-mono"
-                              >
-                                {label}
-                              </text>
-                            </g>
-                          );
-                        });
+                          const maxVal = Math.max(...yearlySummaries.map(s => isRev ? s.total_sales : Math.max(0, getProfitVal(s))), 1);
+                          return yearlySummaries.map((summary, idx) => {
+                            const val = isRev ? summary.total_sales : Math.max(0, getProfitVal(summary));
+                            const barHeight = (val / maxVal) * 150;
+                            const gap = 80;
+                            const startX = 70;
+                            const x = startX + (idx * gap);
+                            const y = 190 - barHeight;
+
+                            return (
+                              <g key={idx} className="group">
+                                <rect
+                                  x={x - 10}
+                                  y={y}
+                                  width="20"
+                                  height={barHeight}
+                                  fill={isRev ? "var(--color-primary)" : "#10b981"}
+                                  rx="3"
+                                  className="transition-all duration-300 hover:opacity-85"
+                                />
+                                <text
+                                  x={x}
+                                  y={y - 6}
+                                  textAnchor="middle"
+                                  fill={isRev ? "var(--color-accent)" : "#10b981"}
+                                  className="font-mono text-[8px] font-bold"
+                                >
+                                  ${Math.round(val)}
+                                </text>
+                                <text
+                                  x={x}
+                                  y="208"
+                                  textAnchor="middle"
+                                  fill="var(--color-text)"
+                                  className="text-[9px] font-bold font-mono"
+                                >
+                                  {summary.year}
+                                </text>
+                              </g>
+                            );
+                          });
+                        } else {
+                          const chartData = (dailySummaries || []).slice(0, 5).reverse();
+                          const maxVal = Math.max(...chartData.map(s => s.total_sales), 1);
+                          return chartData.map((summary, idx) => {
+                            const barHeight = (summary.total_sales / maxVal) * 150;
+                            const gap = chartData.length > 3 ? 45 : 80;
+                            const startX = chartData.length > 3 ? 55 : 80;
+                            const x = startX + (idx * gap);
+                            const y = 190 - barHeight;
+                            const label = summary.date.slice(5);
+
+                            return (
+                              <g key={idx} className="group">
+                                <rect
+                                  x={x}
+                                  y={y}
+                                  width={chartData.length > 3 ? "24" : "40"}
+                                  height={barHeight}
+                                  fill="var(--color-primary)"
+                                  rx="4"
+                                  className="transition-all duration-300 hover:opacity-85"
+                                />
+                                <text
+                                  x={x + (chartData.length > 3 ? 12 : 20)}
+                                  y={y - 8}
+                                  textAnchor="middle"
+                                  fill="var(--color-accent)"
+                                  className="font-mono text-[8px] font-bold"
+                                >
+                                  ${Math.round(summary.total_sales)}
+                                </text>
+                                <text
+                                  x={x + (chartData.length > 3 ? 12 : 20)}
+                                  y="208"
+                                  textAnchor="middle"
+                                  fill="var(--color-text)"
+                                  className="text-[9px] font-bold font-mono"
+                                >
+                                  {label}
+                                </text>
+                              </g>
+                            );
+                          });
+                        }
                       })()}
                     </svg>
+                    {analyticsMode === 'yearly' && (
+                      <div className="flex justify-center gap-6 mt-4 select-none text-[10px] font-bold">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`h-3 w-3 rounded ${yearlyChartMetric === 'revenue' ? 'bg-custom-primary' : 'bg-zinc-650'}`}></div>
+                          <span className={`${yearlyChartMetric === 'revenue' ? 'text-custom-text' : 'text-custom-muted'}`}>Total Revenue</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`h-3 w-3 rounded ${yearlyChartMetric === 'profit' ? 'bg-[#10b981]' : 'bg-zinc-650'}`}></div>
+                          <span className={`${yearlyChartMetric === 'profit' ? 'text-custom-text' : 'text-custom-muted'}`}>Net Profit</span>
+                        </div>
+                      </div>
+                    )}
                     <p className="text-[10px] text-custom-muted/80 text-center mt-3 font-semibold uppercase tracking-wider">
-                      {analyticsMode === 'yearly' ? 'YoY Sales Revenue totals in USD' : 'Last 5 active sales days revenue comparison'}
+                      {analyticsMode === 'yearly' ? (yearlyChartMetric === 'revenue' ? 'YoY Sales Revenue totals' : 'YoY Net Profit totals') : 'Last 5 active sales days revenue comparison'}
                     </p>
                   </div>
                 </div>
@@ -1618,10 +2118,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 const sortedYears = Array.from(yearsSet).sort();
 
                 return (
-                  <div className="overflow-auto max-h-52 border border-custom-border rounded-xl bg-black/10">
+                  <div className="overflow-auto max-h-52 border border-custom-border rounded-xl bg-custom-input/20">
                     <table className="w-full text-left text-xs font-semibold">
                       <thead>
-                        <tr className="bg-custom-input text-custom-muted uppercase tracking-wider text-[9px] border-b border-custom-border">
+                        <tr className="bg-custom-header text-custom-muted uppercase tracking-wider text-[9px] border-b border-custom-border">
                           <th className="py-2.5 px-4 font-extrabold">Product Title</th>
                           {sortedYears.map(yr => (
                             <th key={yr} className="py-2.5 px-4 text-right font-extrabold">{yr} Price</th>
@@ -1679,18 +2179,40 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
-                      Total Stock Cost Spent ($)
+                      Total Stock Cost ($)
                     </label>
                     <input 
                       type="number"
                       min="0"
                       step="0.01"
-                      placeholder="Manual cost override"
+                      placeholder="Total Stock Cost"
                       value={totalStockCostSpent || ''}
                       onChange={e => handleTotalCostChange(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm"
+                      className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text font-mono rounded-lg focus:outline-none text-sm font-mono"
                     />
                     <span className="text-[10px] text-custom-muted/80 mt-1 block">Leave 0 to disable profit tracking.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
+                      Organization Name
+                    </label>
+                    <input 
+                      type="text"
+                      placeholder="🎆 THC FIREWORKS 🎆"
+                      value={organizationName}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        setOrganizationName(val);
+                        try {
+                          await invoke('save_setting', { key: 'organization_name', value: val });
+                        } catch (err) {
+                          console.error("Failed to save organization_name setting", err);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text rounded-lg focus:outline-none text-sm"
+                    />
+                    <span className="text-[10px] text-custom-muted/80 mt-1 block">Reflected at the top of printed receipts.</span>
                   </div>
 
                   <div className="pt-4 border-t border-custom-border/20 flex items-center justify-between gap-4 mt-2">
@@ -1707,6 +2229,58 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
                     </button>
                   </div>
+
+                  <div className="flex items-center justify-between gap-4 pt-4 border-t border-custom-border/20">
+                    <div>
+                      <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">Allow Out-of-Stock Sales</span>
+                      <span className="text-[10px] text-custom-muted mt-0.5 block">Allow register terminals to sell items even when stock count is 0.</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={allowOversell}
+                        onChange={async (e) => {
+                          const val = e.target.checked;
+                          setAllowOversell(val);
+                          try {
+                            await invoke('save_setting', { key: 'allow_oversell', value: val.toString() });
+                            triggerNotice('Overselling preference updated', 'success');
+                          } catch (err) {
+                            triggerNotice('Failed to save settings: ' + err, 'error');
+                          }
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-custom-input peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-custom-accent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-custom-muted peer-checked:after:bg-custom-accent after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-custom-primary border border-custom-border"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Danger Zone Card */}
+              <div className="glass-panel border-red-905/40 rounded-2xl p-5 shadow-lg space-y-4 bg-red-950/5">
+                <h3 className="text-base font-bold text-red-400 flex items-center gap-2 border-b border-red-950/20 pb-3">
+                  <AlertTriangle className="h-4 w-4" /> Danger Zone
+                </h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">Delete Database & Backups</span>
+                    <span className="text-[10px] text-custom-muted mt-1 block">
+                      Irreversibly delete all catalog items, transaction records, preset discounts, sales taxes, and SQLite backup files.
+                    </span>
+                  </div>
+                  
+                  <button
+                    id="btn-admin-danger-delete"
+                    onClick={() => {
+                      generateDeleteCode();
+                      setShowDeleteConfirmModal(true);
+                    }}
+                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow border border-red-500"
+                  >
+                    Clear Database & Backups...
+                  </button>
                 </div>
               </div>
             </div>
@@ -1747,7 +2321,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                       {/* Swatch color bubble indicators */}
                       <div className="flex items-center justify-between mt-4">
-                        <div className="flex items-center gap-1.5 bg-black/25 px-2.5 py-1.5 rounded-lg border border-custom-border/40">
+                        <div className="flex items-center gap-1.5 bg-custom-input/40 px-2.5 py-1.5 rounded-lg border border-custom-border/40">
                           {/* Background swatch */}
                           <div className="h-3.5 w-3.5 rounded-full border border-white/20" style={{ backgroundColor: t.bg }} title="Background" />
                           {/* Card swatch */}
@@ -1797,16 +2371,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       placeholder="e.g. Volunteer Teal / Christmas Theme"
                       value={customThemeName}
                       onChange={e => setCustomThemeName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-black/30 border border-custom-border focus:border-custom-primary text-custom-text rounded-xl focus:outline-none text-sm"
+                      className="w-full px-4 py-2.5 bg-custom-input border border-custom-border focus:border-custom-primary text-custom-text rounded-xl focus:outline-none text-sm"
                       required
                     />
                   </div>
 
                   {/* Swatch pickers grid */}
-                  <div className="grid grid-cols-2 gap-3.5 bg-black/15 p-3 rounded-xl border border-custom-border/50">
+                  <div className="grid grid-cols-2 gap-3.5 bg-custom-input/40 p-3 rounded-xl border border-custom-border/50">
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Background</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeBg} onChange={e => setCustomThemeBg(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeBg}</span>
                       </div>
@@ -1814,7 +2388,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Cards</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeCard} onChange={e => setCustomThemeCard(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeCard}</span>
                       </div>
@@ -1822,7 +2396,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Text Color</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeText} onChange={e => setCustomThemeText(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeText}</span>
                       </div>
@@ -1830,7 +2404,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Muted Text</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeMuted} onChange={e => setCustomThemeMuted(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeMuted}</span>
                       </div>
@@ -1838,7 +2412,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Primary Btn</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemePrimary} onChange={e => setCustomThemePrimary(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemePrimary}</span>
                       </div>
@@ -1846,7 +2420,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Accent Accent</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeAccent} onChange={e => setCustomThemeAccent(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeAccent}</span>
                       </div>
@@ -1854,7 +2428,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Border Line</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeBorder} onChange={e => setCustomThemeBorder(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeBorder}</span>
                       </div>
@@ -1862,7 +2436,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Header Bar</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeHeader} onChange={e => setCustomThemeHeader(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeHeader}</span>
                       </div>
@@ -1870,7 +2444,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div>
                       <label className="block text-[9px] font-extrabold uppercase tracking-wider text-custom-muted mb-1">Input Fields</label>
-                      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-custom-border/40">
+                      <div className="flex items-center gap-2 bg-custom-input/50 p-1.5 rounded-lg border border-custom-border/40">
                         <input type="color" value={customThemeInput} onChange={e => setCustomThemeInput(e.target.value)} className="h-6 w-8 rounded cursor-pointer border-0 bg-transparent" />
                         <span className="font-mono text-[10px] text-custom-text uppercase">{customThemeInput}</span>
                       </div>
@@ -1891,6 +2465,212 @@ export const AdminView: React.FC<AdminViewProps> = ({
         )}
 
       </div>
+
+      {/* MODAL: DELETE CONFIRMATION MODAL */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print select-none animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4">
+            <h3 className="text-lg font-bold text-red-400 flex items-center gap-2 pb-2 border-b border-slate-850">
+              <AlertTriangle className="h-5.5 w-5.5" /> Irreversible Database Deletion
+            </h3>
+            
+            <p className="text-xs text-slate-300 leading-relaxed font-sans">
+              This action will completely erase the SQLite database file and the local backup, deleting all catalog products, transactions, discounts, taxes, and settings.
+            </p>
+            
+            <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-center">
+              <span className="block text-[10px] uppercase font-bold text-red-400 font-sans">To confirm, type this code in the input:</span>
+              <span className="block font-mono text-sm font-black text-white tracking-widest mt-1.5 select-all">{deleteConfirmationCode}</span>
+            </div>
+
+            <div>
+              <input 
+                type="text"
+                placeholder="Type the confirmation code"
+                value={deleteInputText}
+                onChange={e => setDeleteInputText(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 text-white rounded-lg focus:outline-none text-sm placeholder:text-slate-500 font-mono"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowDeleteConfirmModal(false)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-lg text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (deleteInputText === deleteConfirmationCode) {
+                    try {
+                      await invoke('delete_database_and_backup');
+                      triggerNotice('All database and backup files cleared', 'success');
+                      setShowDeleteConfirmModal(false);
+                      loadInventory();
+                      loadDiscounts();
+                      loadSales();
+                      loadTaxes();
+                      loadOversellSetting();
+                    } catch (err) {
+                      triggerNotice('Deletion failed: ' + err, 'error');
+                    }
+                  }
+                }}
+                disabled={deleteInputText !== deleteConfirmationCode}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-950 disabled:text-slate-500 disabled:border-slate-850 border border-red-500/20 text-white font-bold rounded-lg text-xs transition-all active:scale-97 cursor-pointer"
+              >
+                Delete Everything
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SALES LEDGER TRANSACTION RECEIPT REPRINT */}
+      {showReceiptModal && selectedReceiptSale && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-custom-card border border-custom-border rounded-2xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-200">
+            {/* Modal Actions */}
+            <div className="bg-custom-header border-b border-custom-border px-6 py-4 flex items-center justify-between no-print">
+              <h3 className="font-bold text-custom-text text-lg flex items-center gap-2">
+                <History className="h-5.5 w-5.5 text-custom-primary" /> View/Reprint Receipt
+              </h3>
+              <button 
+                onClick={() => setShowReceiptModal(false)}
+                className="p-2 hover:bg-custom-primary/20 rounded-xl text-custom-muted hover:text-custom-text transition-all border border-custom-border"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Receipt Preview Body (Scoped for printable styles) */}
+            <div className="p-6 bg-custom-input/40 overflow-y-auto max-h-[400px] flex justify-center no-print">
+              <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300 animate-in zoom-in-95 duration-200">
+                <div className="text-center border-b border-dashed border-black pb-4 mb-4">
+                  <h4 className="font-extrabold text-sm tracking-tight">{organizationName}</h4>
+                  <p className="text-[10px] text-zinc-600 mt-1">{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
+                  <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
+                  <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
+                  <p className="text-[9px] text-left mt-2">Sale #: {selectedReceiptSale.id}</p>
+                  <p className="text-[9px] text-left">Date: {new Date(selectedReceiptSale.timestamp).toLocaleString()}</p>
+                </div>
+
+                <div className="space-y-2 border-b border-dashed border-black pb-3 mb-3">
+                  {selectedReceiptSale.items?.map(sItem => (
+                    <div key={sItem.id} className="flex justify-between text-left">
+                      <div className="pr-2">
+                        <span className="font-bold">{sItem.item_name || `Item ID: ${sItem.item_id}`}</span>
+                        <span className="block text-[10px] text-zinc-600 font-normal">
+                          {sItem.quantity} x ${sItem.price_at_sale.toFixed(2)}
+                        </span>
+                      </div>
+                      <span className="font-bold shrink-0">${(sItem.price_at_sale * sItem.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1.5 text-right font-bold">
+                  <div className="flex justify-between font-normal text-zinc-600">
+                    <span>Subtotal</span>
+                    <span>${selectedReceiptSale.subtotal.toFixed(2)}</span>
+                  </div>
+                  {selectedReceiptSale.discount_total > 0 && (
+                    <div className="flex justify-between font-normal text-zinc-800">
+                      <span>Discount</span>
+                      <span>-${selectedReceiptSale.discount_total.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-normal text-zinc-600">
+                    <span>Tax</span>
+                    <span>${selectedReceiptSale.tax_total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-dotted border-black pt-1.5 text-xs text-black font-extrabold uppercase">
+                    <span>Total Paid</span>
+                    <span>${selectedReceiptSale.final_total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="text-center mt-6 pt-4 border-t border-dashed border-black">
+                  <p className="font-bold text-[10px] tracking-wide">THANK YOU FOR YOUR PATRONAGE!</p>
+                  <p className="text-[9px] text-zinc-600 mt-1">Have a safe and happy 4th of July!</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Invisible block injected solely for standard browser layout printing */}
+            <div id="receipt-print-area" className="hidden">
+              <div className="text-center pb-4 mb-4" style={{ borderBottom: '1px dashed black' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>{organizationName}</h4>
+                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
+                <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>
+                <div style={{ textAlign: 'left', marginTop: '5px', fontSize: '9px' }}>
+                  <p style={{ margin: '0' }}>Sale #: {selectedReceiptSale.id}</p>
+                  <p style={{ margin: '0' }}>Date: {new Date(selectedReceiptSale.timestamp).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div style={{ paddingBottom: '8px', marginBottom: '8px', borderBottom: '1px dashed black' }}>
+                {selectedReceiptSale.items?.map(sItem => (
+                  <div key={sItem.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ paddingRight: '10px' }}>
+                      <p style={{ margin: '0', fontWeight: 'bold' }}>{sItem.item_name || `Item ID: ${sItem.item_id}`}</p>
+                      <p style={{ margin: '0', fontSize: '10px', color: '#333' }}>
+                        {sItem.quantity} x ${sItem.price_at_sale.toFixed(2)}
+                      </p>
+                    </div>
+                    <span style={{ fontWeight: 'bold' }}>${(sItem.price_at_sale * sItem.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'normal', color: '#555' }}>
+                  <span>Subtotal</span>
+                  <span>${selectedReceiptSale.subtotal.toFixed(2)}</span>
+                </div>
+                {selectedReceiptSale.discount_total > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'normal', color: '#222' }}>
+                    <span>Discount</span>
+                    <span>-${selectedReceiptSale.discount_total.toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'normal', color: '#555' }}>
+                  <span>Tax</span>
+                  <span>${selectedReceiptSale.tax_total.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dotted black', paddingTop: '6px', fontSize: '12px', fontWeight: 'bold' }}>
+                  <span>TOTAL PAID</span>
+                  <span>${selectedReceiptSale.final_total.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'center', marginTop: '20px', paddingTop: '10px', borderTop: '1px dashed black' }}>
+                <p style={{ margin: '0', fontWeight: 'bold', fontSize: '10px' }}>THANK YOU FOR YOUR PATRONAGE!</p>
+                <p style={{ margin: '2px 0 0 0', fontSize: '9px' }}>Have a safe and happy 4th of July!</p>
+              </div>
+            </div>
+
+            {/* Modal Print Trigger Actions */}
+            <div className="bg-custom-header border-t border-custom-border px-6 py-4 flex gap-3 no-print">
+              <button
+                onClick={() => window.print()}
+                className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-97 border border-custom-border cursor-pointer"
+              >
+                <Printer className="h-5 w-5" /> Print Receipt
+              </button>
+              <button
+                onClick={() => setShowReceiptModal(false)}
+                className="px-6 py-3 bg-custom-input hover:bg-custom-primary/20 text-custom-text font-semibold rounded-xl transition-all border border-custom-border active:scale-97"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

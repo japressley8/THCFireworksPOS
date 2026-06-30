@@ -16,6 +16,15 @@ struct Item {
     bulk_barcode: Option<String>,
     bulk_quantity: Option<i32>,
     unit_cost: Option<f64>,
+    tax_id: Option<i32>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Tax {
+    id: i32,
+    name: String,
+    rate: f64,
+    scope: String, // "total" or "item"
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -66,6 +75,7 @@ struct YearSummary {
     discount_total: f64,
     ticket_count: i32,
     avg_ticket_value: f64,
+    profit: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -250,6 +260,8 @@ fn init_db() -> Result<(), String> {
         .ok();
     conn.execute("ALTER TABLE items ADD COLUMN unit_cost REAL", [])
         .ok();
+    conn.execute("ALTER TABLE items ADD COLUMN tax_id INTEGER", [])
+        .ok();
 
     // Create Price History Table
     conn.execute(
@@ -276,6 +288,18 @@ fn init_db() -> Result<(), String> {
         [],
     )
     .map_err(|e| format!("Schema error (discounts): {}", e))?;
+
+    // Create Taxes Table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS taxes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            rate REAL NOT NULL,
+            scope TEXT CHECK(scope IN ('total', 'item')) NOT NULL
+        );",
+        [],
+    )
+    .map_err(|e| format!("Schema error (taxes): {}", e))?;
 
     // Create Sales Table
     conn.execute(
@@ -363,7 +387,7 @@ fn get_items() -> Result<Vec<Item>, String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     let mut stmt = conn
-        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost FROM items ORDER BY name ASC")
+        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id FROM items ORDER BY name ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -379,6 +403,7 @@ fn get_items() -> Result<Vec<Item>, String> {
                 bulk_barcode: row.get(7)?,
                 bulk_quantity: row.get(8)?,
                 unit_cost: row.get(9)?,
+                tax_id: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -396,7 +421,7 @@ fn get_item_by_barcode(barcode: String) -> Result<Option<Item>, String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     let mut stmt = conn
-        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost FROM items WHERE barcode = ?1 OR bulk_barcode = ?1")
+        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id FROM items WHERE barcode = ?1 OR bulk_barcode = ?1")
         .map_err(|e| e.to_string())?;
 
     let mut rows = stmt
@@ -412,6 +437,7 @@ fn get_item_by_barcode(barcode: String) -> Result<Option<Item>, String> {
                 bulk_barcode: row.get(7)?,
                 bulk_quantity: row.get(8)?,
                 unit_cost: row.get(9)?,
+                tax_id: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -435,13 +461,14 @@ fn add_item(
     bulk_barcode: Option<String>,
     bulk_quantity: Option<i32>,
     unit_cost: Option<f64>,
+    tax_id: Option<i32>,
 ) -> Result<(), String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "INSERT INTO items (barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost],
+        "INSERT INTO items (barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id],
     )
     .map_err(|e| format!("Failed to add product (Barcode might already exist): {}", e))?;
 
@@ -478,13 +505,14 @@ fn update_item_details(
     bulk_barcode: Option<String>,
     bulk_quantity: Option<i32>,
     unit_cost: Option<f64>,
+    tax_id: Option<i32>,
 ) -> Result<(), String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "UPDATE items SET name = ?1, price = ?2, stock_quantity = ?3, notes = ?4, bulk_price = ?5, bulk_barcode = ?6, bulk_quantity = ?7, unit_cost = ?8 WHERE id = ?9",
-        params![name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, id],
+        "UPDATE items SET name = ?1, price = ?2, stock_quantity = ?3, notes = ?4, bulk_price = ?5, bulk_barcode = ?6, bulk_quantity = ?7, unit_cost = ?8, tax_id = ?9 WHERE id = ?10",
+        params![name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -593,6 +621,15 @@ fn complete_sale(
             )
             .map_err(|e| format!("Item ID {} query error: {}", target.item_id, e))?;
 
+        let allow_oversell: bool = tx
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'allow_oversell'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .map(|v| v == "true")
+            .unwrap_or(false);
+
         if let Some(stock_val) = stock {
             let qty_to_deduct = if target.is_bulk.unwrap_or(false) {
                 target.quantity * bulk_qty.unwrap_or(1)
@@ -600,7 +637,7 @@ fn complete_sale(
                 target.quantity
             };
 
-            if stock_val < qty_to_deduct {
+            if !allow_oversell && stock_val < qty_to_deduct {
                 return Err(format!(
                     "Transaction canceled. Insufficient inventory for Item ID {}. Available: {}, Requested: {}",
                     target.item_id, stock_val, qty_to_deduct
@@ -706,16 +743,36 @@ fn get_yearly_sales_summary() -> Result<Vec<YearSummary>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT 
-                strftime('%Y', timestamp) as yr,
-                SUM(final_total) as tot_sales,
-                SUM(subtotal) as sub,
-                SUM(tax_total) as tax,
-                SUM(discount_total) as disc,
-                COUNT(id) as tk_count,
-                AVG(final_total) as avg_tk
-             FROM sales
-             GROUP BY yr
-             ORDER BY yr DESC;",
+                s.yr,
+                s.tot_sales,
+                s.sub,
+                s.tax,
+                s.disc,
+                s.tk_count,
+                s.avg_tk,
+                (s.tot_sales - IFNULL(c.total_cogs, 0)) as profit
+             FROM (
+                 SELECT 
+                     strftime('%Y', timestamp) as yr,
+                     SUM(final_total) as tot_sales,
+                     SUM(subtotal) as sub,
+                     SUM(tax_total) as tax,
+                     SUM(discount_total) as disc,
+                     COUNT(id) as tk_count,
+                     AVG(final_total) as avg_tk
+                 FROM sales
+                 GROUP BY yr
+             ) s
+             LEFT JOIN (
+                 SELECT 
+                     strftime('%Y', s2.timestamp) as yr,
+                     SUM(si.quantity * IFNULL(i.unit_cost, 0)) as total_cogs
+                 FROM sale_items si
+                 JOIN sales s2 ON si.sale_id = s2.id
+                 JOIN items i ON si.item_id = i.id
+                 GROUP BY yr
+             ) c ON s.yr = c.yr
+             ORDER BY s.yr DESC;",
         )
         .map_err(|e| format!("Failed to prepare SQL query: {}", e))?;
 
@@ -728,6 +785,7 @@ fn get_yearly_sales_summary() -> Result<Vec<YearSummary>, String> {
             let discount_total: f64 = row.get(4).unwrap_or(0.0);
             let ticket_count: i32 = row.get(5).unwrap_or(0);
             let avg_ticket_value: f64 = row.get(6).unwrap_or(0.0);
+            let profit: f64 = row.get(7).unwrap_or(0.0);
 
             Ok(YearSummary {
                 year,
@@ -737,6 +795,7 @@ fn get_yearly_sales_summary() -> Result<Vec<YearSummary>, String> {
                 discount_total,
                 ticket_count,
                 avg_ticket_value,
+                profit,
             })
         })
         .map_err(|e| format!("Query failed: {}", e))?;
@@ -875,6 +934,81 @@ fn get_item_price_history() -> Result<Vec<PriceHistoryEntry>, String> {
     Ok(list)
 }
 
+#[tauri::command]
+fn get_taxes() -> Result<Vec<Tax>, String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare("SELECT id, name, rate, scope FROM taxes ORDER BY name ASC")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(Tax {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                rate: row.get(2)?,
+                scope: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+fn add_tax(name: String, rate: f64, scope: String) -> Result<(), String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "INSERT INTO taxes (name, rate, scope) VALUES (?1, ?2, ?3)",
+        params![name, rate, scope],
+    )
+    .map_err(|e| e.to_string())?;
+    backup_db();
+
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_tax(id: i32) -> Result<(), String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+    conn.execute("UPDATE items SET tax_id = NULL WHERE tax_id = ?1", params![id]).ok();
+
+    conn.execute("DELETE FROM taxes WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    backup_db();
+
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_database_and_backup() -> Result<(), String> {
+    let db_path = resolve_db_path()?;
+    let backup_path = resolve_backup_path();
+
+    if db_path.exists() {
+        std::fs::remove_file(&db_path).map_err(|e| format!("Failed to delete database: {}", e))?;
+    }
+
+    if let Some(bp) = &backup_path {
+        if bp.exists() {
+            std::fs::remove_file(bp).map_err(|e| format!("Failed to delete backup: {}", e))?;
+        }
+    }
+
+    init_db()?;
+    Ok(())
+}
+
 // --- MODULE INVOCATION ENTRY ---
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -906,7 +1040,11 @@ pub fn run() {
             seed_historical_sales,
             get_item_price_history,
             get_setting,
-            save_setting
+            save_setting,
+            get_taxes,
+            add_tax,
+            delete_tax,
+            delete_database_and_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1024,6 +1162,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             None
         )
         .is_ok());
@@ -1040,6 +1179,7 @@ mod tests {
             "Mega Blast Aerial Edited".to_string(),
             54.99,
             Some(25),
+            None,
             None,
             None,
             None,

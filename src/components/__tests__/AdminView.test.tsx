@@ -69,7 +69,7 @@ describe('AdminView Component', () => {
       if (cmd === 'get_discounts') return Promise.resolve(mockDiscounts);
       if (cmd === 'get_sales') return Promise.resolve(mockSales);
       if (cmd === 'get_yearly_sales_summary') return Promise.resolve([
-        { year: '2026', total_sales: 9.99, subtotal: 9.99, tax_total: 0, discount_total: 0, ticket_count: 1, avg_ticket_value: 9.99 }
+        { year: '2026', total_sales: 9.99, subtotal: 9.99, tax_total: 0, discount_total: 0, ticket_count: 1, avg_ticket_value: 9.99, profit: 9.99 }
       ]);
       if (cmd === 'seed_historical_sales') return Promise.resolve();
       if (cmd === 'add_item') return Promise.resolve();
@@ -113,7 +113,8 @@ describe('AdminView Component', () => {
         bulkPrice: null,
         bulkBarcode: null,
         bulkQuantity: null,
-        unitCost: null
+        unitCost: null,
+        taxId: null
       });
     });
   });

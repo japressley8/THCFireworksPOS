@@ -1,6 +1,6 @@
 {
   "productName": "THC_Fireworks",
-  "version": "1.0.8",
+  "version": "26.1.0",
   "identifier": "com.church.thcfireworks",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -16,7 +16,8 @@
         "width": 1280,
         "height": 800,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

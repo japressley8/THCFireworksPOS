@@ -44,7 +44,7 @@ jobs:
           releaseName: 'THC Fireworks v__VERSION__'
           releaseBody: 'Release details for THC Fireworks POS.'
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref, '-pre') || contains(github.ref, '-rc') }}
 
       - name: Create Updater JSON
         shell: pwsh

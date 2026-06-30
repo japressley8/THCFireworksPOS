@@ -7,6 +7,16 @@ export default {
   theme: {
     extend: {
       colors: {
+        'custom-bg': 'var(--color-bg)',
+        'custom-card': 'var(--color-card)',
+        'custom-text': 'var(--color-text)',
+        'custom-muted': 'var(--color-muted)',
+        'custom-primary': 'var(--color-primary)',
+        'custom-primary-hover': 'var(--color-primary-hover)',
+        'custom-accent': 'var(--color-accent)',
+        'custom-border': 'var(--color-border)',
+        'custom-header': 'var(--color-header)',
+        'custom-input': 'var(--color-input)',
         patriotic: {
           midnight: '#030712', // bg-slate-950 equivalent or darker
           sky: '#090d16',      // custom deep blue-black

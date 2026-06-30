@@ -9,6 +9,14 @@ export interface Item {
   bulk_barcode?: string;
   bulk_quantity?: number;
   unit_cost?: number;
+  tax_id?: number | null;
+}
+
+export interface Tax {
+  id: number;
+  name: string;
+  rate: number; // e.g. 7.0 for 7%
+  scope: 'total' | 'item';
 }
 
 export interface Discount {
@@ -68,6 +76,7 @@ export interface YearSummary {
   discount_total: number;
   ticket_count: number;
   avg_ticket_value: number;
+  profit: number;
 }
 
 export interface DaySummary {

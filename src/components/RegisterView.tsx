@@ -16,7 +16,7 @@ import {
   Sparkles,
   Barcode
 } from 'lucide-react';
-import { Item, Discount, CartItem } from '../types';
+import { Item, Discount, CartItem, Tax } from '../types';
 
 interface RegisterViewProps {
   scannedBarcode: string;
@@ -28,13 +28,15 @@ interface RegisterViewProps {
 export const RegisterView: React.FC<RegisterViewProps> = ({ 
   scannedBarcode, 
   onClearScan,
-  taxRate,
+  taxRate: _taxRate,
   lowStockThreshold
 }) => {
   // State
   const [items, setItems] = useState<Item[]>([]);
   const [discounts, setDiscounts] = useState<Discount[]>([]);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [allowOversell, setAllowOversell] = useState<boolean>(false);
   
   // Discount states
   const [selectedDiscountId, setSelectedDiscountId] = useState<number | null>(null);
@@ -48,6 +50,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [lastSaleData, setLastSaleData] = useState<any>(null);
+  const [organizationName, setOrganizationName] = useState<string>('🎆 THC FIREWORKS 🎆');
   
   // Notification banner
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -63,8 +66,29 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
     try {
       const itemsList = await invoke<Item[]>('get_items');
       const discountsList = await invoke<Discount[]>('get_discounts');
-      setItems(itemsList);
-      setDiscounts(discountsList);
+      const taxesList = await invoke<Tax[]>('get_taxes');
+      
+      let oversell = false;
+      try {
+        const oversellVal = await invoke<string | null>('get_setting', { key: 'allow_oversell' });
+        oversell = oversellVal === 'true';
+      } catch (err) {
+        console.error("Failed to load allow_oversell setting", err);
+      }
+      
+      let orgName = '🎆 THC FIREWORKS 🎆';
+      try {
+        const orgVal = await invoke<string | null>('get_setting', { key: 'organization_name' });
+        if (orgVal && orgVal.trim() !== '') orgName = orgVal;
+      } catch (err) {
+        console.error("Failed to load organization_name setting", err);
+      }
+      
+      setItems(itemsList || []);
+      setDiscounts(discountsList || []);
+      setTaxes(taxesList || []);
+      setAllowOversell(oversell);
+      setOrganizationName(orgName);
     } catch (err) {
       showNotice('Failed to load database: ' + err, 'error');
     }
@@ -113,7 +137,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
         return total;
       }, 0);
 
-      if (item.stock_quantity !== null && item.stock_quantity !== undefined) {
+      if (item.stock_quantity !== null && item.stock_quantity !== undefined && !allowOversell) {
         if (currentCartTotal + multiplier > item.stock_quantity) {
           showNotice(`Cannot add. Only ${item.stock_quantity} units available in stock.`, 'error');
           return prevCart;
@@ -148,7 +172,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             return total;
           }, 0);
 
-          if (i.item.stock_quantity !== null && i.item.stock_quantity !== undefined) {
+          if (i.item.stock_quantity !== null && i.item.stock_quantity !== undefined && !allowOversell) {
             if (otherCartTotal + (newQty * multiplier) > i.item.stock_quantity) {
               showNotice(`Only ${i.item.stock_quantity} in stock for ${i.item.name}`, 'error');
               return i;
@@ -212,7 +236,34 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   const subtotal = calculateCartSubtotal();
   const discountTotal = calculateDiscountTotal(subtotal);
   const taxableAmount = Math.max(0, subtotal - discountTotal);
-  const taxTotal = taxableAmount * taxRate;
+  
+  const calculateTaxTotal = (subtotalVal: number, discountTotalVal: number) => {
+    const ratio = subtotalVal > 0 ? (discountTotalVal / subtotalVal) : 0;
+    let totalTaxRate = (taxes || []).filter(t => t.scope === 'total').reduce((s, t) => s + t.rate, 0);
+    if ((taxes || []).length === 0 && _taxRate > 0) {
+      totalTaxRate = _taxRate * 100;
+    }
+    
+    return cart.reduce((totalTax, cartItem) => {
+      const price = cartItem.isBulk && cartItem.item.bulk_price !== null && cartItem.item.bulk_price !== undefined 
+        ? cartItem.item.bulk_price 
+        : cartItem.item.price;
+      const itemSubtotal = price * cartItem.quantity;
+      const itemTaxable = Math.max(0, itemSubtotal * (1 - ratio));
+      
+      let itemRate = totalTaxRate;
+      if (cartItem.item.tax_id === -1) {
+        itemRate = 0;
+      } else if (cartItem.item.tax_id !== null && cartItem.item.tax_id !== undefined) {
+        const matchingTax = (taxes || []).find(t => t.id === cartItem.item.tax_id);
+        itemRate = matchingTax ? matchingTax.rate : 0;
+      }
+      
+      return totalTax + (itemTaxable * (itemRate / 100));
+    }, 0);
+  };
+
+  const taxTotal = calculateTaxTotal(subtotal, discountTotal);
   const finalTotal = taxableAmount + taxTotal;
 
   // Keypad controls for custom discount
@@ -405,7 +456,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   });
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full p-2 relative overflow-hidden select-none">
+    <div className="flex flex-col lg:flex-row gap-6 h-full p-2 relative lg:overflow-hidden overflow-y-auto select-none">
       
       {/* Alert Notification banner */}
       {notification && (
@@ -564,12 +615,12 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       </div>
 
       {/* RIGHT COLUMN: DISCOUNTS, TOTALS, AND CHECKOUT */}
-      <div className="w-full lg:w-96 flex flex-col gap-6">
+      <div className="w-full lg:w-96 flex flex-col gap-6 lg:h-full lg:overflow-hidden shrink-0">
         
         {/* PANEL A: SEARCH & RAPID INVENTORY ADD */}
-        <div className="glass-panel rounded-2xl border-custom-border p-4 shadow-xl flex flex-col">
+        <div className="glass-panel rounded-2xl border-custom-border p-4 shadow-xl flex flex-col flex-1 overflow-hidden hidden lg:flex">
           <h3 className="text-base font-bold text-custom-text mb-3 flex items-center gap-2">
-            <Search className="h-4.5 w-4.5 text-custom-primary" /> Quick Add Product List
+            <Search className="h-4.5 w-4.5 text-custom-primary" /> Quick Add
           </h3>
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-custom-muted" />
@@ -582,7 +633,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
               className="w-full pl-9 pr-4 py-2.5 bg-custom-input border border-custom-border focus:border-custom-primary text-custom-text rounded-lg text-sm focus:outline-none transition-all placeholder:text-custom-muted/50"
             />
           </div>
-          <div className="h-40 overflow-y-auto space-y-1 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1">
             {filteredProducts.length === 0 ? (
               <div className="text-xs text-custom-muted text-center py-6">No matching items</div>
             ) : (
@@ -625,13 +676,13 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
         </div>
 
         {/* PANEL B: DISCOUNT ENGINE */}
-        <div className="glass-panel rounded-2xl border-custom-border p-5 shadow-xl flex flex-col">
+        <div className="glass-panel rounded-2xl border-custom-border p-5 shadow-xl flex flex-col shrink-0 overflow-hidden">
           <h3 className="text-base font-bold text-custom-text mb-4 flex items-center gap-2">
-            <Tag className="h-4.5 w-4.5 text-custom-primary" /> Apply Sale Discount
+            <Tag className="h-4.5 w-4.5 text-custom-primary" /> Apply Discount
           </h3>
           
           {/* Pre-made discounts list (scrollable container) */}
-          <div className="max-h-[180px] overflow-y-auto pr-1 mb-3 space-y-2">
+          <div className="max-h-[110px] overflow-y-auto pr-1 mb-3 space-y-2">
             <div className="grid grid-cols-2 gap-2">
               {discounts.map(disc => {
                 const isActive = selectedDiscountId === disc.id;
@@ -679,7 +730,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
         </div>
 
         {/* PANEL C: TOTALS CALCULATOR AND PRIMARY COMPLETE BUTTON */}
-        <div className="glass-panel rounded-2xl border-custom-border p-6 shadow-2xl space-y-4 bg-custom-input/30">
+        <div className="glass-panel rounded-2xl border-custom-border p-6 shadow-2xl space-y-4 bg-custom-input/30 shrink-0">
           <div className="space-y-2 border-b border-custom-border pb-4">
             <div className="flex justify-between text-custom-muted text-sm font-semibold">
               <span>Subtotal</span>
@@ -703,7 +754,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             )}
 
             <div className="flex justify-between text-custom-muted text-sm font-semibold">
-              <span>Sales Tax ({(taxRate * 100).toFixed(0)}%)</span>
+              <span>Sales Tax</span>
               <span className="font-mono text-custom-text">${taxTotal.toFixed(2)}</span>
             </div>
           </div>
@@ -815,7 +866,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             <button
               id="btn-apply-custom-discount"
               onClick={applyCustomDiscount}
-              className="w-full py-4.5 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-base rounded-xl transition-all shadow-lg active:scale-97 border border-custom-border"
+              className="w-full py-4 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-base rounded-xl transition-all shadow-lg active:scale-97 border border-custom-border"
             >
               Apply Discount
             </button>
@@ -845,8 +896,8 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
               {/* Virtual Receipt Render */}
               <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300">
                 <div className="text-center border-b border-dashed border-black pb-4 mb-4">
-                  <h4 className="font-extrabold text-sm tracking-tight">🎆 THC FIREWORKS 🎆</h4>
-                  <p className="text-[10px] text-zinc-600 mt-1">Thousand Hills Church Booth</p>
+                  <h4 className="font-extrabold text-sm tracking-tight">{organizationName}</h4>
+                  <p className="text-[10px] text-zinc-600 mt-1">{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                   <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
                   <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
                   <p className="text-[9px] text-left mt-2">Sale #: {lastSaleData.id}</p>
@@ -881,8 +932,8 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                       <span>-${lastSaleData.discountTotal.toFixed(2)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-normal text-zinc-600">
-                    <span>Tax ({(taxRate * 100).toFixed(0)}%)</span>
+                  <div className="flex justify-between font-normal text-zinc-650">
+                    <span>Tax</span>
                     <span>${lastSaleData.taxTotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between border-t border-dotted border-black pt-1.5 text-xs text-black font-extrabold uppercase">
@@ -901,8 +952,8 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             {/* Invisible block injected solely for standard browser layout printing */}
             <div id="receipt-print-area" className="hidden">
               <div className="text-center pb-4 mb-4" style={{ borderBottom: '1px dashed black' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>🎆 THC FIREWORKS 🎆</h4>
-                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>Thousand Hills Church Booth</p>
+                <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>{organizationName}</h4>
+                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                 <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
                 <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>
                 <div style={{ textAlign: 'left', marginTop: '5px', fontSize: '9px' }}>
@@ -940,7 +991,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'normal', color: '#555' }}>
-                  <span>Tax ({(taxRate * 100).toFixed(0)}%)</span>
+                  <span>Tax</span>
                   <span>${lastSaleData.taxTotal.toFixed(2)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dotted black', paddingTop: '6px', fontSize: '12px', fontWeight: 'bold' }}>

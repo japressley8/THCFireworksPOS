@@ -23,39 +23,12 @@ import AdminView from './components/AdminView';
 import ScannerListener from './components/ScannerListener';
 import { Theme } from './types';
 import logoImg from './logo.png';
+import { SolitaireModal } from './components/SolitaireModal';
 
 const starterThemes: Theme[] = [
   {
-    id: 'dark',
-    name: 'Dark Mode',
-    bg: '#090d16',
-    card: 'rgba(15, 23, 42, 0.75)',
-    text: '#f8fafc',
-    muted: '#94a3b8',
-    primary: '#3b82f6',
-    primaryHover: '#2563eb',
-    accent: '#f59e0b',
-    border: 'rgba(51, 65, 85, 0.5)',
-    header: '#0f172a',
-    input: '#05080e'
-  },
-  {
-    id: 'light',
-    name: 'Light Mode',
-    bg: '#f8fafc',
-    card: '#ffffff',
-    text: '#0f172a',
-    muted: '#475569',
-    primary: '#2563eb',
-    primaryHover: '#1d4ed8',
-    accent: '#d97706',
-    border: '#cbd5e1',
-    header: '#e2e8f0',
-    input: '#ffffff'
-  },
-  {
     id: 'thc',
-    name: 'THC Mode',
+    name: 'THC Dark',
     bg: '#081a12',
     card: 'rgba(15, 46, 34, 0.75)',
     text: '#ffffff',
@@ -66,6 +39,20 @@ const starterThemes: Theme[] = [
     border: 'rgba(16, 185, 129, 0.25)',
     header: '#0b241b',
     input: '#040e0a'
+  },
+  {
+    id: 'thc-light',
+    name: 'THC Light',
+    bg: '#f0fdf4',
+    card: '#ffffff',
+    text: '#064e3b',
+    muted: '#047857',
+    primary: '#10b981',
+    primaryHover: '#059669',
+    accent: '#2563eb',
+    border: '#a7f3d0',
+    header: '#dcfce7',
+    input: '#ffffff'
   },
   {
     id: 'patriotic',
@@ -111,6 +98,28 @@ export const App: React.FC = () => {
   const [updateAvailable, setUpdateAvailable] = useState<any>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [showAdminWarning, setShowAdminWarning] = useState<boolean>(false);
+
+  // Solitaire easter egg states
+  const [showSolitaireModal, setShowSolitaireModal] = useState<boolean>(false);
+  const [cachedSolitaireState, setCachedSolitaireState] = useState<any>(null);
+  const [, setLogoClickCount] = useState<number>(0);
+  const [logoClickTimer, setLogoClickTimer] = useState<any>(null);
+
+  const handleLogoClick = () => {
+    if (logoClickTimer) clearTimeout(logoClickTimer);
+    setLogoClickCount(prev => {
+      const next = prev + 1;
+      if (next >= 10) {
+        setShowSolitaireModal(true);
+        return 0;
+      }
+      return next;
+    });
+    const timer = setTimeout(() => {
+      setLogoClickCount(0);
+    }, 3000);
+    setLogoClickTimer(timer);
+  };
 
   // Themes state loading from SQLite settings
   const [themes, setThemes] = useState<Theme[]>(starterThemes);
@@ -257,6 +266,10 @@ export const App: React.FC = () => {
 
   const handleGlobalBarcodeScan = (barcode: string) => {
     setScannedBarcode(barcode);
+    if (showSolitaireModal) {
+      setShowSolitaireModal(false);
+      setActiveTab('register');
+    }
   };
 
   const clearScan = () => {
@@ -319,7 +332,7 @@ export const App: React.FC = () => {
                 {updateAvailable.body && (
                   <div>
                     <span className="text-[9px] font-extrabold text-custom-muted uppercase tracking-wider block mb-1.5">Release Notes:</span>
-                    <p className="text-xs text-custom-text leading-relaxed bg-black/20 rounded-lg p-3 max-h-32 overflow-y-auto font-sans border border-custom-border/20 whitespace-pre-line">
+                    <p className="text-xs text-custom-text leading-relaxed bg-custom-input/40 rounded-lg p-3 max-h-32 overflow-y-auto font-sans border border-custom-border/20 whitespace-pre-line">
                       {updateAvailable.body}
                     </p>
                   </div>
@@ -411,8 +424,9 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-3 select-none">
           <img 
             src={logoImg} 
-            className="h-10 w-10 hover:scale-105 active:scale-95 transition-all rounded-full border border-custom-border shadow-lg" 
+            className="h-10 w-10 hover:scale-105 active:scale-95 transition-all rounded-full border border-custom-border shadow-lg cursor-pointer" 
             alt="THC Logo" 
+            onClick={handleLogoClick}
           />
           <div>
             <h1 className="text-xl font-black tracking-tight text-custom-text flex items-center gap-1.5 uppercase">
@@ -462,10 +476,10 @@ export const App: React.FC = () => {
           <button
             id="btn-toggle-scanner-state"
             onClick={() => setIsScannerListening(prev => !prev)}
-            className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg border bg-custom-input border-custom-border transition-all flex items-center gap-2 cursor-pointer ${
               isScannerListening 
-                ? 'bg-emerald-950/60 border-emerald-900 text-emerald-400' 
-                : 'bg-red-950/60 border-red-900 text-red-400'
+                ? 'text-emerald-500 hover:bg-emerald-500/10' 
+                : 'text-red-500 hover:bg-red-500/10'
             }`}
             title="Click to toggle wedge barcode scanner listener"
           >
@@ -477,7 +491,7 @@ export const App: React.FC = () => {
           <button
             id="btn-trigger-help-tutorial"
             onClick={() => setShowTutorialModal(true)}
-            className="px-3 py-1.5 rounded-lg border border-blue-900 bg-blue-950/60 text-blue-400 transition-all flex items-center gap-2 cursor-pointer"
+            className="px-3 py-1.5 rounded-lg border border-custom-border bg-custom-input text-custom-primary hover:bg-custom-primary/10 transition-all flex items-center gap-2 cursor-pointer"
             title="Open Interactive Volunteer Guide"
           >
             <HelpCircle className="h-3.5 w-3.5" />
@@ -485,12 +499,12 @@ export const App: React.FC = () => {
           </button>
 
           {/* Database Path indicator */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/40 border border-custom-border rounded-lg max-w-[240px] md:max-w-[320px] text-custom-muted relative group">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-custom-input border border-custom-border rounded-lg max-w-[240px] md:max-w-[320px] text-custom-muted relative group">
             <Database className="h-3.5 w-3.5 text-custom-accent shrink-0" />
             <span className="truncate font-mono text-[10px]" title={dbPath}>
               DB: {dbPath}
             </span>
-            <span className="absolute -bottom-8 right-0 bg-slate-900 border border-slate-800 text-[9px] px-2 py-1 rounded shadow-xl hidden group-hover:block whitespace-nowrap z-50">
+            <span className="absolute -bottom-8 right-0 bg-custom-card border border-custom-border text-custom-text text-[9px] px-2 py-1 rounded shadow-xl hidden group-hover:block whitespace-nowrap z-50">
               100% portable flash drive sqlite storage
             </span>
             <CircleDot className={`h-2 w-2 shrink-0 ${dbConnected ? 'text-emerald-500 fill-emerald-500' : 'text-red-500 fill-red-500'}`} />
@@ -541,31 +555,31 @@ export const App: React.FC = () => {
 
       {/* VOLUNTEER & ADMIN TUTORIAL MODAL */}
       {showTutorialModal && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-850 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-custom-card border border-custom-border rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="bg-slate-950 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-white text-lg flex items-center gap-2">
-                <BookOpen className="h-5.5 w-5.5 text-blue-400" />
+            <div className="bg-custom-header border-b border-custom-border px-6 py-4 flex items-center justify-between">
+              <h3 className="font-bold text-custom-text text-lg flex items-center gap-2">
+                <BookOpen className="h-5.5 w-5.5 text-custom-accent" />
                 Volunteer & Admin POS Guides
               </h3>
               <button 
                 id="btn-close-tutorial"
                 onClick={() => setShowTutorialModal(false)}
-                className="p-1.5 hover:bg-slate-900 rounded-lg text-slate-400 hover:text-white transition-all border border-slate-800"
+                className="p-1.5 hover:bg-custom-primary/10 text-custom-muted hover:text-custom-text transition-all border border-custom-border bg-custom-input rounded-lg"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Modal Sub-Header Tabs */}
-            <div className="flex bg-slate-950 border-b border-slate-800 px-6 py-2 gap-6 select-none">
+            <div className="flex bg-custom-header border-b border-custom-border px-6 py-2 gap-6 select-none">
               <button 
                 onClick={() => { setTutorialMode('volunteer'); setActiveTutorialStep(0); }}
                 className={`py-2 text-xs uppercase tracking-wider font-extrabold border-b-2 transition-all ${
                   tutorialMode === 'volunteer' 
-                    ? 'border-blue-500 text-white' 
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-custom-accent text-custom-text' 
+                    : 'border-transparent text-custom-muted hover:text-custom-text'
                 }`}
               >
                 Volunteer POS Mode
@@ -574,8 +588,8 @@ export const App: React.FC = () => {
                 onClick={() => { setTutorialMode('admin'); setActiveTutorialStep(0); }}
                 className={`py-2 text-xs uppercase tracking-wider font-extrabold border-b-2 transition-all ${
                   tutorialMode === 'admin' 
-                    ? 'border-blue-500 text-white' 
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-custom-accent text-custom-text' 
+                    : 'border-transparent text-custom-muted hover:text-custom-text'
                 }`}
               >
                 Admin Config Mode
@@ -592,10 +606,10 @@ export const App: React.FC = () => {
                     onClick={() => setActiveTutorialStep(idx)}
                     className={`h-9 w-9 rounded-full font-bold text-sm transition-all border flex items-center justify-center ${
                       idx === activeTutorialStep
-                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/30 font-extrabold scale-110'
+                        ? 'bg-custom-accent border-custom-accent text-white shadow-lg shadow-custom-accent/30 font-extrabold scale-110'
                         : idx < activeTutorialStep
-                        ? 'bg-blue-950/40 border-blue-900 text-blue-300'
-                        : 'bg-slate-950 border-slate-800 text-slate-500'
+                        ? 'bg-custom-accent/20 border-custom-accent/40 text-custom-accent'
+                        : 'bg-custom-input border-custom-border text-custom-muted'
                     }`}
                   >
                     {idx + 1}
@@ -604,23 +618,23 @@ export const App: React.FC = () => {
               </div>
 
               {/* Active Step Panel */}
-              <div className="bg-slate-950/50 border border-slate-850 rounded-xl p-5 space-y-4">
+              <div className="bg-custom-input/40 border border-custom-border rounded-xl p-5 space-y-4">
                 {tutorialMode === 'volunteer' ? (
                   <>
                     {activeTutorialStep === 0 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <ShoppingCart className="h-6 w-6 text-emerald-400" />
-                          <h4 className="font-bold text-white text-lg">Register & Shopping Cart</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <ShoppingCart className="h-6 w-6 text-custom-accent" />
+                          <h4 className="font-bold text-custom-text text-lg">Register & Shopping Cart</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Volunteers can click items in the <strong>Quick Add Products</strong> panel on the right side of the screen to quickly load them into the checkout register.
+                            Volunteers can build checkouts by clicking products inside the <strong>Quick Add Products</strong> panel on the right of the sales window, or scanning their barcodes.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Use the green <span className="text-emerald-400 font-bold">+</span> and red <span className="text-red-400 font-bold">-</span> buttons on any cart item row to adjust the volume.</li>
-                            <li>If a volunteer attempts to add more items than are in stock, the app will display a notification and restrict additions to prevent stock overselling.</li>
-                            <li>Stock optional: items without stock counts are infinite/unrestricted.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Adjust quantities on any cart item row using the <span className="font-bold">+</span> and <span className="font-bold">-</span> controls.</li>
+                            <li>If stock tracking is active, the app blocks additions beyond inventory counts unless the manager has enabled out-of-stock checkouts.</li>
+                            <li>Press the Trash icon to instantly remove items from the active checkout register.</li>
                           </ul>
                         </div>
                       </>
@@ -628,18 +642,18 @@ export const App: React.FC = () => {
 
                     {activeTutorialStep === 1 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <Scan className="h-6 w-6 text-blue-400" />
-                          <h4 className="font-bold text-white text-lg">Barcode Scanning (UPC)</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Tag className="h-6 w-6 text-custom-primary" />
+                          <h4 className="font-bold text-custom-text text-lg">Discounts & Special Keypad</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            The application captures scans from USB barcode guns. Simply aim and scan.
+                            Apply percentage promotions or staff benefits to cart subtotals using the discounts toolbar.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Wedge scanning works out of the box when the green <strong>Scanner Hook: ON</strong> header state is active.</li>
-                            <li>Bulk sales: scanning a bulk case UPC adds a case cart item, which decrements the individual product stock levels by case quantity.</li>
-                            <li>If a barcode label is damaged, type the barcode manually and click Add Item.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Click discount shortcut buttons on the right side of the screen (e.g. Volunteer, Bulk discount) to apply.</li>
+                            <li>Click <strong>Add Custom Discount Keypad</strong> to toggle the virtual numpad. Type numbers, delete with Backspace, and press Enter to save.</li>
+                            <li>Discounts can be cleared at any time by pressing the active promotion's toggle button again.</li>
                           </ul>
                         </div>
                       </>
@@ -647,17 +661,18 @@ export const App: React.FC = () => {
 
                     {activeTutorialStep === 2 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <Tag className="h-6 w-6 text-amber-400" />
-                          <h4 className="font-bold text-white text-lg">Custom Discount Presets</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Scan className="h-6 w-6 text-custom-accent" />
+                          <h4 className="font-bold text-custom-text text-lg">Wedge Scanners & Manual Entry</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Apply custom promotions or church group member discounts to cart subtotals.
+                            The POS intercepts sweeps from hardware USB barcode scanner guns automatically.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Scroll through active discount presets on the left side of the sales page. Click to apply/toggle.</li>
-                            <li>For custom special pricing, click <strong>Add Custom Discount Keypad</strong> to pull up a virtual numpad.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Ensure the green <strong>Scanner Hook: ON</strong> header button is active to capture scanning gun inputs.</li>
+                            <li>Damaged labels override: type the barcode number manually in the UPC text input and click <strong>Add Item</strong>.</li>
+                            <li>Yellow warnings and alerts automatically trigger in the header when scanned items drop below low-stock threshold levels.</li>
                           </ul>
                         </div>
                       </>
@@ -665,18 +680,18 @@ export const App: React.FC = () => {
 
                     {activeTutorialStep === 3 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <Printer className="h-6 w-6 text-red-400" />
-                          <h4 className="font-bold text-white text-lg">Complete Checkout & Print</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Printer className="h-6 w-6 text-custom-primary" />
+                          <h4 className="font-bold text-custom-text text-lg">Complete Sales & Print Receipts</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Finalize transactions, trigger receipt printing, and complete sales securely.
+                            Record transaction ledgers, compute cash change, and trigger roll receipt printing.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Click the green <strong>Complete Sale</strong> button to submit.</li>
-                            <li>Low-Stock warning banners will trigger if any item drops below the manager's defined threshold.</li>
-                            <li>Successful sales display a receipt. Click <strong>Print Receipt</strong> to send to roll printers.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Click <strong>Complete Sale</strong> (or press Ctrl+Enter) to save. Select cash or credit.</li>
+                            <li>The transaction popup calculates exact change details for cash purchases.</li>
+                            <li>Press <strong>Print Receipt</strong> (Ctrl+P) to output standard 80mm receipts to roll thermal printers. Sales can be reprinted later in the Sales Ledger.</li>
                           </ul>
                         </div>
                       </>
@@ -686,17 +701,18 @@ export const App: React.FC = () => {
                   <>
                     {activeTutorialStep === 0 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <Package className="h-6 w-6 text-emerald-400" />
-                          <h4 className="font-bold text-white text-lg">Product Catalog & Notes</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Package className="h-6 w-6 text-custom-accent" />
+                          <h4 className="font-bold text-custom-text text-lg">Catalog inventory & Thresholds</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Configure the booth's catalog, wholesale price parameters, and custom item logs.
+                            Manage the booth's product offerings, cost thresholds, and warning thresholds.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Leave the stock count blank to disable stock tracking for an item (infinity stock).</li>
-                            <li>Allow admins to type notes on each item. These notes are stored in SQLite and only display inside the admin manager catalog table.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Leave the stock count blank to designate an item as "Infinity Stock" (unrestricted sales).</li>
+                            <li>Configure global safety alerts in settings by setting the <strong>Low-Stock Notification Threshold</strong>.</li>
+                            <li>Log internally visible manager notes on catalog rows to track items, stock notes, or wholesale locations.</li>
                           </ul>
                         </div>
                       </>
@@ -704,17 +720,18 @@ export const App: React.FC = () => {
 
                     {activeTutorialStep === 1 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <Tag className="h-6 w-6 text-blue-400" />
-                          <h4 className="font-bold text-white text-lg">Wholesale & Bulk Selling</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Tag className="h-6 w-6 text-custom-primary" />
+                          <h4 className="font-bold text-custom-text text-lg">Wholesale Cases & Case Sales</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Configure items to be purchased individually OR wholesale in cases.
+                            Link individual retail items to wholesale case items to support bulk selling.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Specify a unique bulk barcode, bulk price, and bulk pack quantity (e.g. 24 units inside).</li>
-                            <li>When volunteers scan the bulk case barcode, the app sells the bulk variant at the bulk price and automatically deducts 24 units from individual item stock.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Assign a unique bulk barcode, bulk pack case quantity (e.g. 24 units), and bulk case price to a product.</li>
+                            <li>When volunteers scan the case barcode, the app sells the wholesale variant and automatically decrements 24 units from individual item stock.</li>
+                            <li>Toggle the out-of-stock checkout permission setting to prevent or allow selling beyond available stock.</li>
                           </ul>
                         </div>
                       </>
@@ -722,17 +739,17 @@ export const App: React.FC = () => {
 
                     {activeTutorialStep === 2 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <Palette className="h-6 w-6 text-amber-400" />
-                          <h4 className="font-bold text-white text-lg">Sunlight Visibility Themes</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Palette className="h-6 w-6 text-custom-accent" />
+                          <h4 className="font-bold text-custom-text text-lg">Sunlight Visibility & Color Builder</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Skin the application header, background, buttons, and custom inputs.
+                            Skin the application to fit direct sunlight marquee setups.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Select <strong>High Contrast (Sunlight)</strong> theme for maximum sunlight legibility when selling outdoors.</li>
-                            <li>Build custom color schemes using the color builder panel, allowing inputs to take distinct backgrounds.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Select the <strong>High Contrast (Sunlight)</strong> theme for maximum legibility when working outdoors.</li>
+                            <li>Build custom color profiles using the theme builder. Tweak buttons, headers, cards, and inputs. All configurations are stored directly in SQLite settings.</li>
                           </ul>
                         </div>
                       </>
@@ -740,18 +757,18 @@ export const App: React.FC = () => {
 
                     {activeTutorialStep === 3 && (
                       <>
-                        <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
-                          <TrendingUp className="h-6 w-6 text-red-400" />
-                          <h4 className="font-bold text-white text-lg">Analytics, Profit & YoY Trends</h4>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <TrendingUp className="h-6 w-6 text-custom-primary" />
+                          <h4 className="font-bold text-custom-text text-lg">Analytics, Profits & Ledger Maintenance</h4>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-300">
+                        <div className="space-y-3 text-sm text-custom-text">
                           <p>
-                            Audit ledger logs, profit stats, and item price histories.
+                            Audit ledger logs, profit trends, margins, and dangerous database operations.
                           </p>
-                          <ul className="list-disc pl-5 text-xs text-slate-400 space-y-1.5">
-                            <li>Adjust low-stock notification thresholds for volunteer terminals.</li>
-                            <li>Specify a global "Total spent on stock" cost to calculate actual profit margins: <code>Revenue - Cost</code>.</li>
-                            <li>Track item prices as they change year-to-year in the interactive YoY prices grid.</li>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Track the total cost of merchandise purchased using the <strong>Total Stock Cost Spent</strong> tracker in settings.</li>
+                            <li>Compare year-over-year revenue and net profit margins side-by-side in SVG graphs.</li>
+                            <li>Reprint receipts or delete records in the Sales Ledger. To clear database tables, input the system generated random <strong>Confirmation Code</strong>.</li>
                           </ul>
                         </div>
                       </>
@@ -762,12 +779,12 @@ export const App: React.FC = () => {
             </div>
 
             {/* Modal Footer Controls */}
-            <div className="bg-slate-950 border-t border-slate-800 px-6 py-4 flex items-center justify-between">
+            <div className="bg-custom-header border-t border-custom-border px-6 py-4 flex items-center justify-between">
               <button
                 id="btn-tutorial-prev"
                 onClick={() => setActiveTutorialStep(prev => Math.max(0, prev - 1))}
                 disabled={activeTutorialStep === 0}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-slate-200 font-semibold rounded-lg border border-slate-800 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all text-xs"
+                className="px-4 py-2 bg-custom-input hover:bg-custom-primary/10 text-custom-muted hover:text-custom-text font-semibold rounded-lg border border-custom-border active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all text-xs"
               >
                 Previous
               </button>
@@ -776,7 +793,7 @@ export const App: React.FC = () => {
                 <button
                   id="btn-tutorial-next"
                   onClick={() => setActiveTutorialStep(prev => prev + 1)}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg active:scale-95 transition-all text-xs"
+                  className="px-5 py-2.5 bg-custom-primary hover:bg-custom-primary-hover text-white font-bold rounded-lg active:scale-95 transition-all text-xs"
                 >
                   Next Step
                 </button>
@@ -784,7 +801,7 @@ export const App: React.FC = () => {
                 <button
                   id="btn-tutorial-finish"
                   onClick={() => { setShowTutorialModal(false); setActiveTutorialStep(0); }}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg active:scale-95 transition-all text-xs shadow-lg shadow-emerald-950/20"
+                  className="px-5 py-2.5 bg-custom-primary hover:bg-custom-primary-hover text-white font-bold rounded-lg active:scale-95 transition-all text-xs shadow-lg shadow-black/20"
                 >
                   Get Started
                 </button>
@@ -792,6 +809,15 @@ export const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showSolitaireModal && (
+        <SolitaireModal 
+          isOpen={showSolitaireModal}
+          onClose={() => setShowSolitaireModal(false)}
+          cachedState={cachedSolitaireState}
+          onSaveCache={(state) => setCachedSolitaireState(state)}
+        />
       )}
     </div>
   );
