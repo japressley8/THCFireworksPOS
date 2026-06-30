@@ -1123,70 +1123,6 @@ async fn save_showcase_video(source_path: String, item_name: String) -> Result<S
     Ok(filename)
 }
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
-fn download_yt_dlp_if_needed() -> Result<PathBuf, String> {
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("Failed to find current executable path: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "Failed to get executable directory".to_string())?;
-    let yt_dlp_path = exe_dir.join("yt-dlp.exe");
-    if yt_dlp_path.exists() {
-        return Ok(yt_dlp_path);
-    }
-
-    // Download yt-dlp.exe from GitHub
-    let url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
-    let agent = ureq::AgentBuilder::new()
-        .redirects(5)
-        .build();
-
-    let response = agent.get(url)
-        .call()
-        .map_err(|e| format!("Failed to fetch yt-dlp binary: {}", e))?;
-
-    let mut bytes = Vec::new();
-    use std::io::Read;
-    response.into_reader().read_to_end(&mut bytes)
-        .map_err(|e| format!("Failed to read yt-dlp response: {}", e))?;
-
-    std::fs::write(&yt_dlp_path, bytes)
-        .map_err(|e| format!("Failed to write yt-dlp.exe: {}", e))?;
-
-    Ok(yt_dlp_path)
-}
-
-#[tauri::command]
-async fn download_youtube_video(url: String, item_name: String) -> Result<String, String> {
-    let videos_dir = resolve_videos_dir()?;
-    let filename = format!("{}_showcase_video.mp4", sanitize_filename(&item_name));
-    let dest_path = videos_dir.join(&filename);
-
-    let yt_dlp_path = download_yt_dlp_if_needed()?;
-
-    let mut cmd = std::process::Command::new(&yt_dlp_path);
-    cmd.args(&[
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "--output", &dest_path.to_string_lossy(),
-        &url
-    ]);
-
-    #[cfg(target_os = "windows")]
-    {
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    }
-
-    let status = cmd.status().map_err(|e| format!("Failed to run yt-dlp extraction: {}", e))?;
-
-    if !status.success() {
-        return Err("yt-dlp extraction process exited with error status".to_string());
-    }
-
-    Ok(filename)
-}
-
 #[tauri::command]
 fn get_video_url(filename: String) -> Result<String, String> {
     let videos_dir = resolve_videos_dir()?;
@@ -1245,7 +1181,6 @@ pub fn run() {
             delete_database_and_backup,
             toggle_playback_window,
             save_showcase_video,
-            download_youtube_video,
             get_video_url,
             select_local_video
         ])

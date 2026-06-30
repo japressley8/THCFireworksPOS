@@ -510,12 +510,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         if (item.video) {
           const isYoutube = item.video.includes('youtube.com') || item.video.includes('youtu.be');
           if (isYoutube) {
-            try {
-              videoPath = await invoke<string>('download_youtube_video', { url: item.video, itemName: item.name.trim() });
-            } catch (e) {
-              console.warn('YouTube download failed on import: ', e);
-              videoPath = item.video; // Fallback to streaming
-            }
+            // Store the YouTube URL directly — streams at playback time
+            videoPath = item.video;
           }
         }
         
@@ -608,18 +604,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     const isYoutube = val.includes('youtube.com') || val.includes('youtu.be');
     if (isYoutube) {
-      try {
-        triggerNotice('Attempting to download YouTube video locally...', 'success');
-        const filename = await invoke<string>('download_youtube_video', { url: val, itemName });
-        triggerNotice('YouTube video downloaded successfully for offline play!', 'success');
-        return filename;
-      } catch (err) {
-        triggerNotice(`YouTube download failed: ${err}. Falling back to online streaming.`, 'error');
-        return val;
-      }
+      // Store the YouTube URL directly — streams at playback time
+      return val;
     } else {
-      if (val.endsWith('.mp4') || val.endsWith('.webm')) {
+      if (val.endsWith('.mp4') || val.endsWith('.webm') || val.endsWith('.mov') || val.endsWith('.avi') || val.endsWith('.mkv')) {
         if (!val.includes('/') && !val.includes('\\')) {
+          // Already a bare filename in showcase storage
           return val;
         }
       }
