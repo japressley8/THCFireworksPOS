@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tauri::Manager;
 
 // --- DATA STRUCTURES ---
 
@@ -17,6 +18,7 @@ struct Item {
     bulk_quantity: Option<i32>,
     unit_cost: Option<f64>,
     tax_id: Option<i32>,
+    video_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -243,7 +245,8 @@ fn init_db() -> Result<(), String> {
             bulk_price REAL,
             bulk_barcode TEXT,
             bulk_quantity INTEGER,
-            unit_cost REAL
+            unit_cost REAL,
+            video_path TEXT
         );",
         [],
     )
@@ -261,6 +264,8 @@ fn init_db() -> Result<(), String> {
     conn.execute("ALTER TABLE items ADD COLUMN unit_cost REAL", [])
         .ok();
     conn.execute("ALTER TABLE items ADD COLUMN tax_id INTEGER", [])
+        .ok();
+    conn.execute("ALTER TABLE items ADD COLUMN video_path TEXT", [])
         .ok();
 
     // Create Price History Table
@@ -387,7 +392,7 @@ fn get_items() -> Result<Vec<Item>, String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     let mut stmt = conn
-        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id FROM items ORDER BY name ASC")
+        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, video_path FROM items ORDER BY name ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -404,6 +409,7 @@ fn get_items() -> Result<Vec<Item>, String> {
                 bulk_quantity: row.get(8)?,
                 unit_cost: row.get(9)?,
                 tax_id: row.get(10)?,
+                video_path: row.get(11)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -421,7 +427,7 @@ fn get_item_by_barcode(barcode: String) -> Result<Option<Item>, String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     let mut stmt = conn
-        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id FROM items WHERE barcode = ?1 OR bulk_barcode = ?1")
+        .prepare("SELECT id, barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, video_path FROM items WHERE barcode = ?1 OR bulk_barcode = ?1")
         .map_err(|e| e.to_string())?;
 
     let mut rows = stmt
@@ -438,6 +444,7 @@ fn get_item_by_barcode(barcode: String) -> Result<Option<Item>, String> {
                 bulk_quantity: row.get(8)?,
                 unit_cost: row.get(9)?,
                 tax_id: row.get(10)?,
+                video_path: row.get(11)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -462,13 +469,14 @@ fn add_item(
     bulk_quantity: Option<i32>,
     unit_cost: Option<f64>,
     tax_id: Option<i32>,
+    video_path: Option<String>,
 ) -> Result<(), String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "INSERT INTO items (barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id],
+        "INSERT INTO items (barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, video_path) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![barcode, name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, video_path],
     )
     .map_err(|e| format!("Failed to add product (Barcode might already exist): {}", e))?;
 
@@ -506,13 +514,47 @@ fn update_item_details(
     bulk_quantity: Option<i32>,
     unit_cost: Option<f64>,
     tax_id: Option<i32>,
+    video_path: Option<String>,
 ) -> Result<(), String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
+    let existing_item = conn.query_row(
+        "SELECT name, video_path FROM items WHERE id = ?1",
+        params![id],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+    ).ok();
+
+    let mut updated_video_path = video_path.clone();
+
+    if let Some((old_name, Some(old_vid))) = existing_item {
+        if old_name != name {
+            if !old_vid.starts_with("http://") && !old_vid.starts_with("https://") {
+                if let Ok(videos_dir) = resolve_videos_dir() {
+                    let old_file_path = videos_dir.join(&old_vid);
+                    if old_file_path.exists() {
+                        let ext = std::path::Path::new(&old_vid)
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("mp4");
+                        
+                        let new_filename = format!("{}_showcase_video.{}", sanitize_filename(&name), ext);
+                        let new_file_path = videos_dir.join(&new_filename);
+                        
+                        if let Err(err) = std::fs::rename(&old_file_path, &new_file_path) {
+                            eprintln!("Failed to rename showcase video: {}", err);
+                        } else {
+                            updated_video_path = Some(new_filename);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     conn.execute(
-        "UPDATE items SET name = ?1, price = ?2, stock_quantity = ?3, notes = ?4, bulk_price = ?5, bulk_barcode = ?6, bulk_quantity = ?7, unit_cost = ?8, tax_id = ?9 WHERE id = ?10",
-        params![name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, id],
+        "UPDATE items SET name = ?1, price = ?2, stock_quantity = ?3, notes = ?4, bulk_price = ?5, bulk_barcode = ?6, bulk_quantity = ?7, unit_cost = ?8, tax_id = ?9, video_path = ?10 WHERE id = ?11",
+        params![name, price, stock_quantity, notes, bulk_price, bulk_barcode, bulk_quantity, unit_cost, tax_id, updated_video_path, id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -1009,10 +1051,166 @@ fn delete_database_and_backup() -> Result<(), String> {
     Ok(())
 }
 
+fn resolve_videos_dir() -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to find current executable path: {}", e))?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Failed to get executable directory".to_string())?;
+    let videos_dir = exe_dir.join("showcase_videos");
+    if !videos_dir.exists() {
+        std::fs::create_dir_all(&videos_dir)
+            .map_err(|e| format!("Failed to create showcase_videos directory: {}", e))?;
+    }
+    Ok(videos_dir)
+}
+
+#[tauri::command]
+async fn toggle_playback_window(app_handle: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(win) = app_handle.get_webview_window("playback") {
+        win.close().map_err(|e| e.to_string())?;
+        Ok(false)
+    } else {
+        let win = tauri::WebviewWindowBuilder::new(
+            &app_handle,
+            "playback",
+            tauri::WebviewUrl::App("index.html?window=playback".into())
+        )
+        .title("Showcase Playback Screen")
+        .inner_size(800.0, 480.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+        use tauri::Emitter;
+        let app_handle_clone = app_handle.clone();
+        win.on_window_event(move |event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let _ = app_handle_clone.emit("playback-window-closed", ());
+            }
+        });
+
+        Ok(true)
+    }
+}
+
+fn sanitize_filename(name: &str) -> String {
+    let mut sanitized = String::new();
+    for c in name.chars() {
+        if c.is_alphanumeric() || c == '_' || c == '-' || c == ' ' {
+            sanitized.push(c);
+        } else {
+            sanitized.push('_');
+        }
+    }
+    sanitized.trim().replace(" ", "_")
+}
+
+#[tauri::command]
+async fn save_showcase_video(source_path: String, item_name: String) -> Result<String, String> {
+    let src = std::path::Path::new(&source_path);
+    if !src.exists() {
+        return Err("Source video file does not exist".to_string());
+    }
+    let ext = src.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4");
+    let filename = format!("{}_showcase_video.{}", sanitize_filename(&item_name), ext);
+    let videos_dir = resolve_videos_dir()?;
+    let dest_path = videos_dir.join(&filename);
+    std::fs::copy(&src, &dest_path)
+        .map_err(|e| format!("Failed to copy video to local storage: {}", e))?;
+    Ok(filename)
+}
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+fn download_yt_dlp_if_needed() -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to find current executable path: {}", e))?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Failed to get executable directory".to_string())?;
+    let yt_dlp_path = exe_dir.join("yt-dlp.exe");
+    if yt_dlp_path.exists() {
+        return Ok(yt_dlp_path);
+    }
+
+    // Download yt-dlp.exe from GitHub
+    let url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+    let agent = ureq::AgentBuilder::new()
+        .redirects(5)
+        .build();
+
+    let response = agent.get(url)
+        .call()
+        .map_err(|e| format!("Failed to fetch yt-dlp binary: {}", e))?;
+
+    let mut bytes = Vec::new();
+    use std::io::Read;
+    response.into_reader().read_to_end(&mut bytes)
+        .map_err(|e| format!("Failed to read yt-dlp response: {}", e))?;
+
+    std::fs::write(&yt_dlp_path, bytes)
+        .map_err(|e| format!("Failed to write yt-dlp.exe: {}", e))?;
+
+    Ok(yt_dlp_path)
+}
+
+#[tauri::command]
+async fn download_youtube_video(url: String, item_name: String) -> Result<String, String> {
+    let videos_dir = resolve_videos_dir()?;
+    let filename = format!("{}_showcase_video.mp4", sanitize_filename(&item_name));
+    let dest_path = videos_dir.join(&filename);
+
+    let yt_dlp_path = download_yt_dlp_if_needed()?;
+
+    let mut cmd = std::process::Command::new(&yt_dlp_path);
+    cmd.args(&[
+        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "--output", &dest_path.to_string_lossy(),
+        &url
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let status = cmd.status().map_err(|e| format!("Failed to run yt-dlp extraction: {}", e))?;
+
+    if !status.success() {
+        return Err("yt-dlp extraction process exited with error status".to_string());
+    }
+
+    Ok(filename)
+}
+
+#[tauri::command]
+fn get_video_url(filename: String) -> Result<String, String> {
+    let videos_dir = resolve_videos_dir()?;
+    let path = videos_dir.join(filename);
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn select_local_video() -> Result<Option<String>, String> {
+    let file = rfd::FileDialog::new()
+        .add_filter("Video Files", &["mp4", "webm"])
+        .pick_file();
+    Ok(file.map(|p| p.to_string_lossy().to_string()))
+}
+
 // --- MODULE INVOCATION ENTRY ---
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-features=CalculateWindowOcclusion --disable-background-timer-throttling --disable-backgrounding-occluded-windows");
+    }
+
     // Initialize DB schema and seed starting mock entries
     if let Err(e) = init_db() {
         eprintln!("Database initialization failed critical check: {}", e);
@@ -1044,7 +1242,12 @@ pub fn run() {
             get_taxes,
             add_tax,
             delete_tax,
-            delete_database_and_backup
+            delete_database_and_backup,
+            toggle_playback_window,
+            save_showcase_video,
+            download_youtube_video,
+            get_video_url,
+            select_local_video
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1163,6 +1366,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             None
         )
         .is_ok());
@@ -1179,6 +1383,7 @@ mod tests {
             "Mega Blast Aerial Edited".to_string(),
             54.99,
             Some(25),
+            None,
             None,
             None,
             None,

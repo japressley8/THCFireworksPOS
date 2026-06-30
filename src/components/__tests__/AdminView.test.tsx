@@ -114,7 +114,8 @@ describe('AdminView Component', () => {
         bulkBarcode: null,
         bulkQuantity: null,
         unitCost: null,
-        taxId: null
+        taxId: null,
+        videoPath: null
       });
     });
   });

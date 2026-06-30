@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Default capabilities for LibertyPOS",
   "windows": [
-    "main"
+    "main",
+    "playback"
   ],
   "permissions": [
     "core:default",

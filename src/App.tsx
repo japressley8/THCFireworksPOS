@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, emit } from '@tauri-apps/api/event';
 import { 
   DollarSign, 
   Settings, 
@@ -16,7 +17,10 @@ import {
   Palette,
   Package,
   ArrowUpCircle,
-  AlertTriangle
+  AlertTriangle,
+  Video,
+  Play,
+  Pause
 } from 'lucide-react';
 import RegisterView from './components/RegisterView';
 import AdminView from './components/AdminView';
@@ -24,6 +28,7 @@ import ScannerListener from './components/ScannerListener';
 import { Theme } from './types';
 import logoImg from './logo.png';
 import { SolitaireModal } from './components/SolitaireModal';
+import { PlaybackWindow } from './components/PlaybackWindow';
 
 const starterThemes: Theme[] = [
   {
@@ -85,6 +90,8 @@ const starterThemes: Theme[] = [
 ];
 
 export const App: React.FC = () => {
+  const isPlayback = typeof window !== 'undefined' && window.location.search.includes('window=playback');
+
   const [activeTab, setActiveTab] = useState<'register' | 'admin'>('register');
   const [scannedBarcode, setScannedBarcode] = useState<string>('');
   const [dbPath, setDbPath] = useState<string>('Resolving SQLite path...');
@@ -93,6 +100,9 @@ export const App: React.FC = () => {
   const [showTutorialModal, setShowTutorialModal] = useState<boolean>(false);
   const [tutorialMode, setTutorialMode] = useState<'volunteer' | 'admin'>('volunteer');
   const [activeTutorialStep, setActiveTutorialStep] = useState<number>(0);
+
+  // Showcase video playback state
+  const [isPlaybackWindowOpen, setIsPlaybackWindowOpen] = useState<boolean>(false);
 
   // Updater states
   const [updateAvailable, setUpdateAvailable] = useState<any>(null);
@@ -239,6 +249,70 @@ export const App: React.FC = () => {
     checkForUpdates();
   }, []);
 
+  // Listen for video status updates and handle playback state sync
+  useEffect(() => {
+    // Check if playback window exists on start
+    const checkPlaybackWindow = async () => {
+      try {
+        const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const win = await WebviewWindow.getByLabel('playback');
+        setIsPlaybackWindowOpen(win !== null);
+      } catch (e) {
+        console.warn('Playback window API error:', e);
+      }
+    };
+    checkPlaybackWindow();
+
+    const unlisten = listen<any>('video-status-update', () => {
+      setIsPlaybackWindowOpen(prev => {
+        if (!prev) return true;
+        return prev;
+      });
+    });
+
+    const unlistenClosed = listen('playback-window-closed', () => {
+      setIsPlaybackWindowOpen(false);
+      emit('video-status-update', { playing: false, currentTime: 0, duration: 0, title: '', path: '' });
+    });
+
+    return () => {
+      unlisten.then(f => f());
+      unlistenClosed.then(f => f());
+    };
+  }, []);
+
+  const playShowcaseVideo = async (title: string, path: string) => {
+    try {
+      const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const win = await WebviewWindow.getByLabel('playback');
+      if (!win) {
+        await invoke('toggle_playback_window');
+        // Let window initialize and setup listener
+        setTimeout(() => {
+          emit('showcase-play-video', { title, path });
+          setIsPlaybackWindowOpen(true);
+        }, 1000);
+      } else {
+        emit('showcase-play-video', { title, path });
+        setIsPlaybackWindowOpen(true);
+      }
+    } catch (e) {
+      console.error('Failed to command playback window', e);
+    }
+  };
+
+  const handleTogglePlaybackWindow = async () => {
+    try {
+      const opened = await invoke<boolean>('toggle_playback_window');
+      setIsPlaybackWindowOpen(opened);
+      if (!opened) {
+        emit('video-status-update', { playing: false, currentTime: 0, duration: 0, title: '', path: '' });
+      }
+    } catch (e) {
+      console.error('Failed to toggle playback window', e);
+    }
+  };
+
   const handleOpenReleasesPage = async () => {
     try {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
@@ -291,6 +365,10 @@ export const App: React.FC = () => {
 
   // Expose the configured tax rate (e.g. 0.00 = 0%, 0.08 = 8%)
   const taxRate = 0.00;
+
+  if (isPlayback) {
+    return <PlaybackWindow themeStyles={themeStyles} />;
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-custom-bg text-custom-text overflow-hidden font-sans" style={themeStyles}>
@@ -486,6 +564,21 @@ export const App: React.FC = () => {
             <Scan className="h-3.5 w-3.5" />
             <span>{isScannerListening ? 'Scanner Hook: ON' : 'Scanner Hook: OFF'}</span>
           </button>
+
+          {/* Showcase Video Playback Screen Toggle */}
+          <button
+            id="btn-toggle-playback-window"
+            onClick={handleTogglePlaybackWindow}
+            className={`px-3 py-1.5 rounded-lg border bg-custom-input border-custom-border transition-all flex items-center gap-2 cursor-pointer ${
+              isPlaybackWindowOpen 
+                ? 'text-custom-accent border-custom-accent/40 hover:bg-custom-accent/10' 
+                : 'text-custom-muted hover:text-custom-text'
+            }`}
+            title="Toggle Secondary Showcase Video Playback Screen"
+          >
+            <Video className="h-3.5 w-3.5" />
+            <span>Showcase Screen: {isPlaybackWindowOpen ? 'ON' : 'OFF'}</span>
+          </button>
           
           {/* Help Tutorial trigger */}
           <button
@@ -520,6 +613,7 @@ export const App: React.FC = () => {
             onClearScan={clearScan}
             taxRate={taxRate}
             lowStockThreshold={lowStockThreshold}
+            onPlayShowcaseVideo={playShowcaseVideo}
           />
         ) : (
           <AdminView 
@@ -534,6 +628,7 @@ export const App: React.FC = () => {
             onThresholdChange={handleThresholdChange}
             totalStockCostSpent={totalStockCostSpent}
             onTotalCostChange={handleTotalCostChange}
+            onPlayShowcaseVideo={playShowcaseVideo}
             onTriggerUpdateCheck={async () => {
               try {
                 const { check } = await import('@tauri-apps/plugin-updater');
@@ -600,7 +695,7 @@ export const App: React.FC = () => {
             <div className="p-6 space-y-6">
               {/* Step indicator bubbles */}
               <div className="flex justify-between items-center px-4">
-                {[0, 1, 2, 3].map((idx) => (
+                {(tutorialMode === 'volunteer' ? [0, 1, 2, 3, 4] : [0, 1, 2, 3]).map((idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveTutorialStep(idx)}
@@ -692,6 +787,24 @@ export const App: React.FC = () => {
                             <li>Click <strong>Complete Sale</strong> (or press Ctrl+Enter) to save. Select cash or credit.</li>
                             <li>The transaction popup calculates exact change details for cash purchases.</li>
                             <li>Press <strong>Print Receipt</strong> (Ctrl+P) to output standard 80mm receipts to roll thermal printers. Sales can be reprinted later in the Sales Ledger.</li>
+                          </ul>
+                        </div>
+                      </>
+                    )}
+                    {activeTutorialStep === 4 && (
+                      <>
+                        <div className="flex items-center gap-3 border-b border-custom-border/30 pb-3">
+                          <Video className="h-6 w-6 text-custom-accent" />
+                          <h4 className="font-bold text-custom-text text-lg">Showcase Videos Screen</h4>
+                        </div>
+                        <div className="space-y-3 text-sm text-custom-text">
+                          <p>
+                            Present high-definition product demonstrations to customers on a secondary display screen.
+                          </p>
+                          <ul className="list-disc pl-5 text-xs text-custom-muted space-y-1.5">
+                            <li>Click the green <strong>Showcase Screen: ON</strong> header button to open the secondary window, and drag it to your customer-facing screen.</li>
+                            <li>Click the Video icon next to any product in the Quick Add grid, checkout cart, or product catalog to launch play.</li>
+                            <li>Playback controls, seeking timelines, volume muting, and fullscreen options sync instantly between both displays.</li>
                           </ul>
                         </div>
                       </>
@@ -789,7 +902,7 @@ export const App: React.FC = () => {
                 Previous
               </button>
               
-              {activeTutorialStep < 3 ? (
+              {activeTutorialStep < (tutorialMode === 'volunteer' ? 4 : 3) ? (
                 <button
                   id="btn-tutorial-next"
                   onClick={() => setActiveTutorialStep(prev => prev + 1)}
@@ -819,7 +932,93 @@ export const App: React.FC = () => {
           onSaveCache={(state) => setCachedSolitaireState(state)}
         />
       )}
+
+      {/* MINI VIDEO PLAYBACK CONTROLLER (MAIN WINDOW) */}
+      <MiniPlaybackController onCloseController={() => setIsPlaybackWindowOpen(false)} />
     </div>
   );
 };
+
+interface MiniPlaybackControllerProps {
+  onCloseController: () => void;
+}
+
+const MiniPlaybackController: React.FC<MiniPlaybackControllerProps> = ({ onCloseController }) => {
+  const [videoPlaying, setVideoPlaying] = useState<boolean>(false);
+  const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [videoTitle, setVideoTitle] = useState<string>('');
+  const [videoPath, setVideoPath] = useState<string>('');
+
+  useEffect(() => {
+    let active = true;
+    const unlistenPromise = listen<any>('video-status-update', (event) => {
+      if (!active) return;
+      const status = event.payload;
+      setVideoPlaying(status.playing);
+      setVideoCurrentTime(status.currentTime);
+      setVideoDuration(status.duration);
+      setVideoTitle(status.title);
+      setVideoPath(status.path);
+    });
+
+    return () => {
+      active = false;
+      unlistenPromise.then(f => f());
+    };
+  }, []);
+
+  if (!videoPath) return null;
+
+  return (
+    <div className={`bg-custom-header border-t border-custom-border p-3.5 flex flex-col md:flex-row items-center justify-between gap-4 select-none animate-in slide-in-from-bottom duration-200 shrink-0 ${videoPlaying ? 'animate-pulse' : ''}`}>
+      <div className="flex items-center gap-3 w-full md:w-auto min-w-0">
+        <Video className="h-4.5 w-4.5 text-custom-accent shrink-0" />
+        <div className="min-w-0 flex-1">
+          <span className="block text-xs font-extrabold truncate max-w-sm text-custom-text">{videoTitle}</span>
+          <span className="block text-[9px] text-custom-muted font-mono tracking-wider mt-0.5">
+            {videoPlaying ? 'SHOWCASE PLAYING' : 'SHOWCASE PAUSED'}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 w-full md:w-auto shrink-0">
+        {/* Timeline */}
+        <div className="flex items-center gap-2 flex-1 md:w-64 font-mono text-[10px] text-custom-muted">
+          <span>{Math.floor(videoCurrentTime / 60)}:{(Math.floor(videoCurrentTime % 60) < 10 ? '0' : '') + Math.floor(videoCurrentTime % 60)}</span>
+          <input
+            type="range"
+            min={0}
+            max={videoDuration || 100}
+            value={videoCurrentTime}
+            onChange={(e) => emit('video-control-seek', { seconds: parseFloat(e.target.value) })}
+            className="flex-1 h-1 bg-custom-input rounded-lg appearance-none cursor-pointer accent-custom-accent border border-custom-border/50"
+          />
+          <span>{Math.floor(videoDuration / 60)}:{(Math.floor(videoDuration % 60) < 10 ? '0' : '') + Math.floor(videoDuration % 60)}</span>
+        </div>
+
+        {/* Play/Pause control buttons */}
+        <button
+          onClick={() => emit(videoPlaying ? 'video-control-pause' : 'video-control-play')}
+          className="p-2 bg-custom-primary hover:bg-custom-primary-hover text-white rounded-xl shadow active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+        >
+          {videoPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-white" />}
+        </button>
+
+        {/* Clear/Stop bar */}
+        <button
+          onClick={() => {
+            setVideoPath('');
+            onCloseController();
+          }}
+          className="p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/10 text-custom-text rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer"
+          title="Close controller bar"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default App;

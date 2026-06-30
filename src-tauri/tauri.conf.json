@@ -1,6 +1,6 @@
 {
   "productName": "THC_Fireworks",
-  "version": "26.1.0",
+  "version": "26.1.1",
   "identifier": "com.church.thcfireworks",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -21,7 +21,13 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
     }
   },
   "bundle": {

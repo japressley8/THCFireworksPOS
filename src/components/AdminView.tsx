@@ -22,7 +22,8 @@ import {
   Percent,
   Printer,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Video
 } from 'lucide-react';
 import { Item, Discount, Sale, Theme, YearSummary, DaySummary, Tax } from '../types';
 
@@ -39,6 +40,7 @@ interface AdminViewProps {
   totalStockCostSpent: number;
   onTotalCostChange: (val: number) => void;
   onTriggerUpdateCheck: () => Promise<boolean>;
+  onPlayShowcaseVideo?: (title: string, path: string) => void;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
@@ -53,7 +55,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onThresholdChange,
   totalStockCostSpent,
   onTotalCostChange,
-  onTriggerUpdateCheck
+  onTriggerUpdateCheck,
+  onPlayShowcaseVideo
 }) => {
   // Security
   const [isAdminUnlocked] = useState<boolean>(true);
@@ -96,6 +99,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newItemBulkPrice, setNewItemBulkPrice] = useState<string>('');
   const [newItemBulkBarcode, setNewItemBulkBarcode] = useState<string>('');
   const [newItemBulkQuantity, setNewItemBulkQuantity] = useState<string>('');
+  const [newItemVideoPath, setNewItemVideoPath] = useState<string>('');
 
   // New Discount Form State
   const [newDiscName, setNewDiscName] = useState<string>('');
@@ -118,6 +122,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editItemBulkBarcode, setEditItemBulkBarcode] = useState<string>('');
   const [editItemBulkQuantity, setEditItemBulkQuantity] = useState<string>('');
   const [editItemTaxId, setEditItemTaxId] = useState<string>('');
+  const [editItemVideoPath, setEditItemVideoPath] = useState<string>('');
 
   // Taxes states
   const [taxes, setTaxes] = useState<Tax[]>([]);
@@ -142,6 +147,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [yearlyChartMetric, setYearlyChartMetric] = useState<'revenue' | 'profit'>('revenue');
   const [showBulkOptions, setShowBulkOptions] = useState<boolean>(false);
   const [organizationName, setOrganizationName] = useState<string>('🎆 THC FIREWORKS 🎆');
+  const [receiptMessage, setReceiptMessage] = useState<string>('');
+
+  // Responsive panel collapse states
+  const [isNewProductCollapsed, setIsNewProductCollapsed] = useState<boolean>(false);
+  const [isImportWizardCollapsed, setIsImportWizardCollapsed] = useState<boolean>(false);
+  const [isCreateThemeCollapsed, setIsCreateThemeCollapsed] = useState<boolean>(false);
+
+  // Initialize collapse states based on screen size on mount
+  useEffect(() => {
+    const isSkinny = import.meta.env.MODE !== 'test' && window.innerWidth < 1280;
+    setIsNewProductCollapsed(isSkinny);
+    setIsImportWizardCollapsed(isSkinny);
+    setIsCreateThemeCollapsed(isSkinny);
+  }, []);
 
   const loadOrgSetting = async () => {
     try {
@@ -149,6 +168,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       if (val) setOrganizationName(val);
     } catch (err) {
       console.error('Failed to load organization_name setting:', err);
+    }
+    try {
+      const val = await invoke<string | null>('get_setting', { key: 'receipt_message' });
+      if (val) setReceiptMessage(val);
+    } catch (err) {
+      console.error('Failed to load receipt_message setting:', err);
     }
   };
 
@@ -353,6 +378,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const upcIdx = headers.findIndex(h => h.includes('UPC') || h.includes('BARCODE'));
     const priceIdx = headers.findIndex(h => h.includes('RETAIL') || h.includes('PRICE'));
     const stockIdx = headers.findIndex(h => h.includes('STOCK') || h.includes('NUM') || h.includes('SUPPLY'));
+    const videoIdx = headers.findIndex(h => h.includes('VIDEO'));
     
     if (descIdx === -1 || upcIdx === -1 || priceIdx === -1) {
       throw new Error("Missing required columns. The sheet must have headers for 'DESCRIPTION' (or 'NAME'), 'UPC' (or 'BARCODE'), and 'RETAIL' (or 'PRICE').");
@@ -377,13 +403,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
         const val = parseInt(String(row[stockIdx]).replace(/[^0-9-]/g, ''), 10);
         if (!isNaN(val)) stock = val;
       }
+
+      const video = videoIdx !== -1 && row[videoIdx] !== undefined && row[videoIdx] !== null ? String(row[videoIdx]).trim() : '';
       
-      if (name || barcode || price !== null || stock !== null) {
+      if (name || barcode || price !== null || stock !== null || video) {
         importedItems.push({
           barcode: barcode || '',
           name: name || '',
           price: price,
-          stock: stock
+          stock: stock,
+          video: video || null
         });
       }
     }
@@ -401,6 +430,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const upcIdx = headers.findIndex(h => h.includes('UPC') || h.includes('BARCODE'));
     const priceIdx = headers.findIndex(h => h.includes('RETAIL') || h.includes('PRICE'));
     const stockIdx = headers.findIndex(h => h.includes('STOCK') || h.includes('NUM') || h.includes('SUPPLY'));
+    const videoIdx = headers.findIndex(h => h.includes('VIDEO'));
     
     if (descIdx === -1 || upcIdx === -1 || priceIdx === -1) {
       throw new Error("Missing required columns. The CSV must have headers for 'DESCRIPTION' (or 'NAME'), 'UPC' (or 'BARCODE'), and 'RETAIL' (or 'PRICE').");
@@ -444,13 +474,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
         const val = parseInt(cols[stockIdx].replace(/^["']|["']$/g, '').replace(/[^0-9-]/g, ''), 10);
         if (!isNaN(val)) stock = val;
       }
+
+      const video = videoIdx !== -1 && cols[videoIdx] ? cols[videoIdx].replace(/^["']|["']$/g, '').trim() : '';
       
-      if (name || barcode || price !== null || stock !== null) {
+      if (name || barcode || price !== null || stock !== null || video) {
         importedItems.push({
           barcode: barcode || '',
           name: name || '',
           price: price,
-          stock: stock
+          stock: stock,
+          video: video || null
         });
       }
     }
@@ -472,6 +505,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
         }
         const existing = existingItems.find(i => i.barcode === item.barcode);
         const stockVal = item.stock !== null ? item.stock : defaultStockVal;
+
+        let videoPath = existing ? (existing.video_path || null) : null;
+        if (item.video) {
+          const isYoutube = item.video.includes('youtube.com') || item.video.includes('youtu.be');
+          if (isYoutube) {
+            try {
+              videoPath = await invoke<string>('download_youtube_video', { url: item.video, itemName: item.name.trim() });
+            } catch (e) {
+              console.warn('YouTube download failed on import: ', e);
+              videoPath = item.video; // Fallback to streaming
+            }
+          }
+        }
         
         if (existing) {
           if (importDuplicatePolicy === 'skip') {
@@ -488,7 +534,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
               bulkBarcode: existing.bulk_barcode || null,
               bulkQuantity: existing.bulk_quantity !== undefined ? existing.bulk_quantity : null,
               unitCost: null,
-              taxId: existing.tax_id !== undefined ? existing.tax_id : null
+              taxId: existing.tax_id !== undefined ? existing.tax_id : null,
+              videoPath
             });
             successCount++;
           }
@@ -503,7 +550,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
             bulkBarcode: null,
             bulkQuantity: null,
             unitCost: null,
-            taxId: null
+            taxId: null,
+            videoPath
           });
           successCount++;
         }
@@ -554,6 +602,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
 
 
+  const processShowcaseVideo = async (itemName: string, videoPathInput: string): Promise<string | null> => {
+    const val = videoPathInput.trim();
+    if (!val) return null;
+
+    const isYoutube = val.includes('youtube.com') || val.includes('youtu.be');
+    if (isYoutube) {
+      try {
+        triggerNotice('Attempting to download YouTube video locally...', 'success');
+        const filename = await invoke<string>('download_youtube_video', { url: val, itemName });
+        triggerNotice('YouTube video downloaded successfully for offline play!', 'success');
+        return filename;
+      } catch (err) {
+        triggerNotice(`YouTube download failed: ${err}. Falling back to online streaming.`, 'error');
+        return val;
+      }
+    } else {
+      if (val.endsWith('.mp4') || val.endsWith('.webm')) {
+        if (!val.includes('/') && !val.includes('\\')) {
+          return val;
+        }
+      }
+      try {
+        const filename = await invoke<string>('save_showcase_video', { sourcePath: val, itemName });
+        triggerNotice('Local video file copied to showcase storage', 'success');
+        return filename;
+      } catch (err) {
+        triggerNotice(`Failed to copy local video file: ${err}`, 'error');
+        return null;
+      }
+    }
+  };
+
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     const price = parseFloat(newItemPrice);
@@ -567,6 +647,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
 
     try {
+      const resolvedVideoPath = await processShowcaseVideo(newItemName.trim(), newItemVideoPath);
+
       await invoke('add_item', {
         barcode: newItemBarcode.trim(),
         name: newItemName.trim(),
@@ -577,7 +659,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         bulkBarcode: newItemBulkBarcode.trim() === '' ? null : newItemBulkBarcode.trim(),
         bulkQuantity,
         unitCost: null,
-        taxId: newItemTaxId === '' ? null : parseInt(newItemTaxId, 10)
+        taxId: newItemTaxId === '' ? null : parseInt(newItemTaxId, 10),
+        videoPath: resolvedVideoPath
       });
 
       triggerNotice(`Successfully added "${newItemName}"`, 'success');
@@ -590,6 +673,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setNewItemBulkBarcode('');
       setNewItemBulkQuantity('');
       setNewItemTaxId('');
+      setNewItemVideoPath('');
       loadInventory();
     } catch (err) {
       triggerNotice('Failed to add product: ' + err, 'error');
@@ -613,6 +697,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
 
     try {
+      const resolvedVideoPath = await processShowcaseVideo(editItemName.trim(), editItemVideoPath);
+
       await invoke('update_item_details', {
         id: itemId,
         name: editItemName.trim(),
@@ -623,11 +709,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
         bulkBarcode: editItemBulkBarcode.trim() === '' ? null : editItemBulkBarcode.trim(),
         bulkQuantity,
         unitCost: null,
-        taxId: editItemTaxId === '' ? null : parseInt(editItemTaxId, 10)
+        taxId: editItemTaxId === '' ? null : parseInt(editItemTaxId, 10),
+        videoPath: resolvedVideoPath
       });
 
       triggerNotice('Product details updated', 'success');
       setEditingItemId(null);
+      setEditItemVideoPath('');
       loadInventory();
     } catch (err) {
       triggerNotice('Update failed: ' + err, 'error');
@@ -850,11 +938,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <div className="w-full xl:w-[480px] shrink-0 flex flex-col gap-6 overflow-y-auto pr-1">
               {/* Catalog New Product */}
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg flex flex-col space-y-4">
-                <h3 className="text-lg font-bold text-custom-text flex items-center gap-2 pb-2 border-b border-custom-border">
-                  <PlusCircle className="h-5 w-5 text-custom-accent" /> Catalog New Product
+                <h3 
+                  className="text-lg font-bold text-custom-text flex items-center justify-between pb-2 border-b border-custom-border cursor-pointer select-none"
+                  onClick={() => setIsNewProductCollapsed(!isNewProductCollapsed)}
+                >
+                  <div className="flex items-center gap-2">
+                    <PlusCircle className="h-5 w-5 text-custom-accent" /> Catalog New Product
+                  </div>
+                  <ChevronDown className={`h-5 w-5 text-custom-muted transition-transform duration-200 ${!isNewProductCollapsed ? 'rotate-180' : ''}`} />
                 </h3>
 
-                <form onSubmit={handleAddItem} className="space-y-5">
+                {!isNewProductCollapsed && (
+                  <form onSubmit={handleAddItem} className="space-y-5 animate-in fade-in duration-150">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Barcode Scan / Manual Code</label>
                     <div className="relative">
@@ -938,6 +1033,33 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </select>
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">Showcase Video (YouTube Link or Local File)</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="https://youtube.com/... or Pick File"
+                        value={newItemVideoPath}
+                        onChange={e => setNewItemVideoPath(e.target.value)}
+                        className="flex-1 px-4 py-3 bg-custom-input border border-custom-border focus:border-custom-primary text-custom-text rounded-xl focus:outline-none text-sm placeholder:text-custom-muted/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const path = await invoke<string | null>('select_local_video');
+                            if (path) setNewItemVideoPath(path);
+                          } catch (err) {
+                            triggerNotice('Failed to open file dialog: ' + err, 'error');
+                          }
+                        }}
+                        className="px-4 py-3 bg-custom-input border border-custom-border hover:bg-custom-primary/10 text-custom-text rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0"
+                      >
+                        Pick File
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="border-t border-custom-border/40 pt-3.5 space-y-3">
                     <button
                       type="button"
@@ -996,15 +1118,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     Add Product to Catalog
                   </button>
                 </form>
+                )}
               </div>
 
               {/* CSV / Excel Import Wizard Card */}
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg flex flex-col space-y-4 bg-custom-card/50">
-                <h3 className="text-lg font-bold text-custom-text flex items-center gap-2 pb-2 border-b border-custom-border">
-                  <Upload className="h-5 w-5 text-custom-accent" /> CSV / Excel Inventory Import Wizard
+                <h3 
+                  className="text-lg font-bold text-custom-text flex items-center justify-between pb-2 border-b border-custom-border cursor-pointer select-none"
+                  onClick={() => setIsImportWizardCollapsed(!isImportWizardCollapsed)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-5 w-5 text-custom-accent" /> CSV / Excel Inventory Import Wizard
+                  </div>
+                  <ChevronDown className={`h-5 w-5 text-custom-muted transition-transform duration-200 ${!isImportWizardCollapsed ? 'rotate-180' : ''}`} />
                 </h3>
 
-                <div className="space-y-4">
+                {!isImportWizardCollapsed && (
+                  <div className="space-y-4 animate-in fade-in duration-150">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
                       Select Inventory CSV or Excel File
@@ -1146,7 +1276,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </button>
                     </div>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1258,6 +1389,32 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     />
                                   </div>
                                   <div>
+                                    <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Showcase Video (YouTube Link / Local File)</label>
+                                    <div className="flex gap-1.5">
+                                      <input 
+                                        type="text" 
+                                        value={editItemVideoPath} 
+                                        onChange={e => setEditItemVideoPath(e.target.value)} 
+                                        placeholder="YouTube Link or Pick File"
+                                        className="flex-1 px-3 py-1.5 bg-custom-card border border-custom-border rounded-lg text-custom-text focus:outline-none" 
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            const path = await invoke<string | null>('select_local_video');
+                                            if (path) setEditItemVideoPath(path);
+                                          } catch (err) {
+                                            triggerNotice('Failed to open file dialog: ' + err, 'error');
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 bg-custom-card border border-custom-border hover:bg-custom-primary/20 text-custom-text rounded-lg text-[10px] font-bold cursor-pointer shrink-0"
+                                      >
+                                        Pick File
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div>
                                     <label className="block text-[9px] uppercase tracking-wider text-custom-muted mb-1">Sales Tax Category</label>
                                     <select
                                       value={editItemTaxId}
@@ -1354,6 +1511,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 </div>
                               ) : (
                                 <div className="flex justify-center gap-1.5">
+                                  {item.video_path && (
+                                    <button
+                                      onClick={() => onPlayShowcaseVideo?.(item.name, item.video_path!)}
+                                      className="p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-accent hover:text-custom-text rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                                      title="Play Showcase Video"
+                                    >
+                                      <Video className="h-4 w-4" />
+                                    </button>
+                                  )}
                                   <button
                                     id={`btn-edit-item-${item.id}`}
                                     onClick={() => {
@@ -1366,6 +1532,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                       setEditItemBulkPrice(item.bulk_price !== null && item.bulk_price !== undefined ? item.bulk_price.toString() : '');
                                       setEditItemBulkQuantity(item.bulk_quantity !== null && item.bulk_quantity !== undefined ? item.bulk_quantity.toString() : '');
                                       setEditItemTaxId(item.tax_id !== null && item.tax_id !== undefined ? item.tax_id.toString() : '');
+                                      setEditItemVideoPath(item.video_path || '');
                                     }}
                                     className="px-3.5 py-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-text text-xs font-bold rounded-lg transition-all"
                                   >
@@ -2215,6 +2382,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <span className="text-[10px] text-custom-muted/80 mt-1 block">Reflected at the top of printed receipts.</span>
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
+                      Receipt Message
+                    </label>
+                    <input 
+                      type="text"
+                      placeholder="e.g. Thanks for supporting our youth fundraiser!"
+                      value={receiptMessage}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        setReceiptMessage(val);
+                        try {
+                          await invoke('save_setting', { key: 'receipt_message', value: val });
+                        } catch (err) {
+                          console.error("Failed to save receipt_message setting", err);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-custom-input border border-custom-border text-custom-text rounded-lg focus:outline-none text-sm"
+                    />
+                    <span className="text-[10px] text-custom-muted/80 mt-1 block">Printed below the organization name on receipts.</span>
+                  </div>
+
                   <div className="pt-4 border-t border-custom-border/20 flex items-center justify-between gap-4 mt-2">
                     <div>
                       <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">App Updates</span>
@@ -2258,7 +2447,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
 
               {/* Danger Zone Card */}
-              <div className="glass-panel border-red-905/40 rounded-2xl p-5 shadow-lg space-y-4 bg-red-950/5">
+              <div className="glass-panel border-red-905/40 rounded-2xl p-5 shadow-lg space-y-4 bg-red-950/5 hidden xl:block">
                 <h3 className="text-base font-bold text-red-400 flex items-center gap-2 border-b border-red-950/20 pb-3">
                   <AlertTriangle className="h-4 w-4" /> Danger Zone
                 </h3>
@@ -2286,7 +2475,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             {/* Themes Selection Cards Grid */}
-            <div className="flex-1 glass-panel rounded-2xl p-5 shadow-lg overflow-y-auto flex flex-col min-h-0">
+            <div className="flex-1 glass-panel rounded-2xl p-5 shadow-lg overflow-y-auto flex flex-col min-h-[300px] max-h-[500px] xl:max-h-none">
               <h3 className="text-lg font-bold text-custom-text mb-1 flex items-center gap-2 shrink-0">
                 <Palette className="h-5 w-5 text-custom-accent" /> Available Themes
               </h3>
@@ -2356,12 +2545,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             {/* Custom Theme Creator Form Panel */}
-            <div className="w-full xl:w-96 glass-panel rounded-2xl p-5 shadow-lg shrink-0 flex flex-col min-h-0 overflow-y-auto">
-              <h3 className="text-base font-bold text-custom-text mb-1 flex items-center gap-2 border-b border-custom-border pb-3 shrink-0">
-                <PlusCircle className="h-4.5 w-4.5 text-custom-accent" /> Custom Theme Builder
+            <div className="w-full xl:w-96 glass-panel rounded-2xl p-5 shadow-lg shrink-0 flex flex-col min-h-0">
+              <h3 
+                className="text-base font-bold text-custom-text mb-1 flex items-center justify-between border-b border-custom-border pb-3 shrink-0 cursor-pointer select-none"
+                onClick={() => setIsCreateThemeCollapsed(!isCreateThemeCollapsed)}
+              >
+                <div className="flex items-center gap-2">
+                  <PlusCircle className="h-4.5 w-4.5 text-custom-accent" /> Custom Theme Builder
+                </div>
+                <ChevronDown className={`h-5 w-5 text-custom-muted transition-transform duration-200 ${!isCreateThemeCollapsed ? 'rotate-180' : ''}`} />
               </h3>
 
-              <form onSubmit={handleCreateCustomTheme} className="space-y-4 pt-3 flex-1 flex flex-col justify-between">
+              {!isCreateThemeCollapsed && (
+                <form onSubmit={handleCreateCustomTheme} className="space-y-4 pt-3 flex-1 flex flex-col justify-between animate-in fade-in duration-150">
                 <div className="space-y-4">
                   {/* Theme Name input */}
                   <div>
@@ -2459,6 +2655,34 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   Save & Apply Theme
                 </button>
               </form>
+              )}
+            </div>
+
+            {/* Danger Zone Card (Mobile/Skinny Copy) */}
+            <div className="glass-panel border-red-905/40 rounded-2xl p-5 shadow-lg space-y-4 bg-red-950/5 block xl:hidden mt-6">
+              <h3 className="text-base font-bold text-red-400 flex items-center gap-2 border-b border-red-950/20 pb-3">
+                <AlertTriangle className="h-4 w-4" /> Danger Zone
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">Delete Database & Backups</span>
+                  <span className="text-[10px] text-custom-muted mt-1 block">
+                    Irreversibly delete all catalog items, transaction records, preset discounts, sales taxes, and SQLite backup files.
+                  </span>
+                </div>
+                
+                <button
+                  id="btn-admin-danger-delete-mobile"
+                  onClick={() => {
+                    generateDeleteCode();
+                    setShowDeleteConfirmModal(true);
+                  }}
+                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow border border-red-500"
+                >
+                  Clear Database & Backups...
+                </button>
+              </div>
             </div>
 
           </div>
@@ -2549,6 +2773,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300 animate-in zoom-in-95 duration-200">
                 <div className="text-center border-b border-dashed border-black pb-4 mb-4">
                   <h4 className="font-extrabold text-sm tracking-tight">{organizationName}</h4>
+                  {receiptMessage && (
+                    <p className="text-[10px] text-zinc-700 font-semibold mt-1 whitespace-pre-wrap">{receiptMessage}</p>
+                  )}
                   <p className="text-[10px] text-zinc-600 mt-1">{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                   <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
                   <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
@@ -2602,6 +2829,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <div id="receipt-print-area" className="hidden">
               <div className="text-center pb-4 mb-4" style={{ borderBottom: '1px dashed black' }}>
                 <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>{organizationName}</h4>
+                {receiptMessage && (
+                  <p style={{ margin: '3px 0 0 0', fontSize: '10px', color: '#333', whiteSpace: 'pre-wrap' }}>{receiptMessage}</p>
+                )}
                 <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                 <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
                 <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>

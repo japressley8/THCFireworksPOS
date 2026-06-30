@@ -14,7 +14,9 @@ import {
   X, 
   Search,
   Sparkles,
-  Barcode
+  Barcode,
+  Video,
+  Package
 } from 'lucide-react';
 import { Item, Discount, CartItem, Tax } from '../types';
 
@@ -23,13 +25,15 @@ interface RegisterViewProps {
   onClearScan: () => void;
   taxRate: number; // default e.g. 0.00
   lowStockThreshold: number;
+  onPlayShowcaseVideo?: (title: string, path: string) => void;
 }
 
 export const RegisterView: React.FC<RegisterViewProps> = ({ 
   scannedBarcode, 
   onClearScan,
   taxRate: _taxRate,
-  lowStockThreshold
+  lowStockThreshold,
+  onPlayShowcaseVideo
 }) => {
   // State
   const [items, setItems] = useState<Item[]>([]);
@@ -51,6 +55,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [lastSaleData, setLastSaleData] = useState<any>(null);
   const [organizationName, setOrganizationName] = useState<string>('🎆 THC FIREWORKS 🎆');
+  const [receiptMessage, setReceiptMessage] = useState<string>('');
   
   // Notification banner
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -83,12 +88,21 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       } catch (err) {
         console.error("Failed to load organization_name setting", err);
       }
+
+      let receiptMsg = '';
+      try {
+        const receiptVal = await invoke<string | null>('get_setting', { key: 'receipt_message' });
+        if (receiptVal) receiptMsg = receiptVal;
+      } catch (err) {
+        console.error("Failed to load receipt_message setting", err);
+      }
       
       setItems(itemsList || []);
       setDiscounts(discountsList || []);
       setTaxes(taxesList || []);
       setAllowOversell(oversell);
       setOrganizationName(orgName);
+      setReceiptMessage(receiptMsg);
     } catch (err) {
       showNotice('Failed to load database: ' + err, 'error');
     }
@@ -532,6 +546,15 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                           Case of {cartItem.item.bulk_quantity}
                         </span>
                       )}
+                      {cartItem.item.video_path && (
+                        <button
+                          onClick={() => onPlayShowcaseVideo?.(cartItem.item.name, cartItem.item.video_path!)}
+                          className="p-1 hover:bg-custom-primary/20 text-custom-accent hover:text-custom-text rounded transition-all cursor-pointer flex items-center justify-center shrink-0"
+                          title="Watch Showcase Video"
+                        >
+                          <Video className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 text-sm flex-wrap">
                       <span className="text-custom-muted">Price:</span>
@@ -642,7 +665,8 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                 return (
                   <div 
                     key={item.id} 
-                    className="w-full p-2 bg-custom-input/40 border border-custom-border rounded-lg flex justify-between items-center transition-all text-xs"
+                    onClick={() => addToCart(item, false)}
+                    className="w-full p-2 bg-custom-input/40 border border-custom-border rounded-lg flex justify-between items-center transition-all text-xs cursor-pointer hover:bg-custom-input/70 active:border-custom-primary/50 hover:border-custom-primary/30 shadow-sm select-none"
                   >
                     <div className="min-w-0 pr-2 flex-1">
                       <span className="block font-semibold text-custom-text truncate text-sm">{item.name}</span>
@@ -651,19 +675,28 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 select-none">
-                      <button
-                        onClick={() => addToCart(item, false)}
-                        className="px-2.5 py-1 bg-custom-primary hover:bg-custom-primary-hover text-white text-[10px] font-extrabold rounded-lg shadow active:scale-95 transition-all"
-                      >
-                        + Add
-                      </button>
+                      {item.video_path && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPlayShowcaseVideo?.(item.name, item.video_path!);
+                          }}
+                          className="p-1 hover:bg-custom-primary/20 text-custom-accent hover:text-custom-text rounded active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                          title="Play Showcase Video"
+                        >
+                          <Video className="h-4 w-4" />
+                        </button>
+                      )}
                       {item.bulk_barcode && (
                         <button
-                          onClick={() => addToCart(item, true)}
-                          className="px-2.5 py-1 bg-custom-accent/20 border border-custom-accent/30 hover:bg-custom-accent/30 text-custom-accent text-[10px] font-extrabold rounded-lg shadow active:scale-95 transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(item, true);
+                          }}
+                          className="p-1 hover:bg-custom-primary/20 text-custom-primary hover:text-custom-text rounded active:scale-95 transition-all cursor-pointer flex items-center justify-center"
                           title={`Add Case of ${item.bulk_quantity} units`}
                         >
-                          + Case
+                          <Package className="h-4 w-4" />
                         </button>
                       )}
                       <span className="font-mono font-bold text-sm text-custom-accent pl-1.5">${item.price.toFixed(2)}</span>
@@ -897,6 +930,9 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
               <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300">
                 <div className="text-center border-b border-dashed border-black pb-4 mb-4">
                   <h4 className="font-extrabold text-sm tracking-tight">{organizationName}</h4>
+                  {receiptMessage && (
+                    <p className="text-[10px] text-zinc-700 font-semibold mt-1 whitespace-pre-wrap">{receiptMessage}</p>
+                  )}
                   <p className="text-[10px] text-zinc-600 mt-1">{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                   <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
                   <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
@@ -953,6 +989,9 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             <div id="receipt-print-area" className="hidden">
               <div className="text-center pb-4 mb-4" style={{ borderBottom: '1px dashed black' }}>
                 <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>{organizationName}</h4>
+                {receiptMessage && (
+                  <p style={{ margin: '3px 0 0 0', fontSize: '10px', color: '#333', whiteSpace: 'pre-wrap' }}>{receiptMessage}</p>
+                )}
                 <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                 <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
                 <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>

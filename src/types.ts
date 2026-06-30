@@ -10,6 +10,7 @@ export interface Item {
   bulk_quantity?: number;
   unit_cost?: number;
   tax_id?: number | null;
+  video_path?: string | null;
 }
 
 export interface Tax {

@@ -8,6 +8,7 @@ THC Fireworks POS (Thousand Hills Church POS) is a premium, local-first Point of
 
 * **🎨 Theme Options:** Optimized for indoor, outdoor, and low-light environments. Switch between **THC Dark** (default), **THC Light**, **Patriotic** (Red/White/Blue), and **High Contrast (Sunlight)** for maximum readability in direct outdoor sunlight.
 * **💾 100% USB Portability:** The application database (`firework_pos.db`) is stored in the same folder as the app. Simply copy the portable executable file to a USB drive and plug it into any Windows computer.
+* **📺 Secondary Showcase Playback Screen:** Toggle a secondary video screen via the header button to display high-definition product demonstrations. Includes double-sided playback controls, seek timelines, and silent background `yt-dlp` offline YouTube integration.
 * **🚀 Keyboard Wedge Scanner Support:** Scans barcode entries instantly without needing to click into search inputs.
 * **📦 Catalog & Inventory Audit Ledger:** Real-time stock counts, bulk package pricing support, price adjustments, and a restricted-access warning popup.
 * **💸 Sales Taxes & Rules:** Set up total-scope taxes or per-item specific taxes. Support for tax-exempt items.
@@ -42,11 +43,18 @@ THC Fireworks POS (Thousand Hills Church POS) is a premium, local-first Point of
 * **Checkout:** Click **Complete Sale** to record the transaction.
 * **Receipts:** Hit **Print Receipt** (shortcut `Ctrl + P`) to print or save a PDF.
 
-### 2. The Administrator Panel
+### 2. Showcase Videos (Secondary Playback Window)
+* **Toggle Screen:** Click the **Showcase Screen** toggle button in the header (next to the Scanner Hook) to open a dedicated borderless video window. You can drag this to a second display facing customers.
+* **Play Videos:** Click the video icon button next to items in the checkout cart, Quick Add grid, or inventory catalog to play product demonstration clips.
+* **Offline Playback**: When you add a YouTube URL to an item, the app automatically downloads it using an integrated open-source extractor (`yt-dlp`) to enable offline local playback. If offline download fails, it falls back to online streaming.
+* **Synchronized Control**: Controls like play, pause, mute, timeline scrubbing, and fullscreen toggles sync dynamically between the primary window and the secondary screen.
+
+### 3. The Administrator Panel
 * Click **Admin View** in the top navigation bar.
-* Read and acknowledge the restricted access warning modal (which warns that changes to pricing and inventory must only be performed by qualified staff).
+* Read and acknowledge the restricted access warning modal.
 * From here you can:
   * Add, edit, or delete items, barcodes, discounts, and taxes.
+  * Set message footers on printed receipts under the organization name.
   * Toggle out-of-stock checkout permission controls in Settings.
   * View daily and yearly sales summaries (compare Revenue vs Profit side-by-side).
   * Reprint receipt details or inspect ledger entries.
