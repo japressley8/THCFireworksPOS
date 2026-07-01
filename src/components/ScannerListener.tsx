@@ -14,7 +14,7 @@ export const ScannerListener: React.FC<ScannerListenerProps> = ({ onScan, isEnab
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // If a modal is open, don't capture globally.
-      if (document.querySelector('.z-50')) {
+      if (document.querySelector('.fixed.z-50')) {
         return;
       }
 

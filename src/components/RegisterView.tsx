@@ -925,9 +925,9 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             </div>
 
             {/* Receipt Preview Body (Scoped for printable styles) */}
-            <div className="p-6 bg-custom-input/40 overflow-y-auto max-h-[400px] flex justify-center no-print">
+            <div className="p-6 bg-custom-input/40 overflow-y-auto max-h-[400px] flex justify-center items-start no-print">
               {/* Virtual Receipt Render */}
-              <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300">
+              <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300 h-fit">
                 <div className="text-center border-b border-dashed border-black pb-4 mb-4">
                   <h4 className="font-extrabold text-sm tracking-tight">{organizationName}</h4>
                   {receiptMessage && (

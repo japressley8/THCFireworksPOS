@@ -129,6 +129,8 @@
 .border-custom-border { border-color: var(--color-border) !important; }
 .bg-custom-header { background-color: var(--color-header) !important; }
 .bg-custom-input { background-color: var(--color-input) !important; }
+.border-custom-primary { border-color: var(--color-primary) !important; }
+.text-custom-primary { color: var(--color-primary) !important; }
 
 /* Override glass-panel background and border dynamically */
 .glass-panel {

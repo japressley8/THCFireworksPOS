@@ -62,16 +62,16 @@ const starterThemes: Theme[] = [
   {
     id: 'patriotic',
     name: 'Patriotic',
-    bg: '#0a192f',
-    card: '#172a45',
-    text: '#ffffff',
-    muted: '#8892b0',
-    primary: '#e63946',
-    primaryHover: '#d62828',
-    accent: '#3b82f6',
-    border: 'rgba(59, 130, 246, 0.3)',
-    header: '#1d3557',
-    input: '#0c1a2f'
+    bg: '#f8fafc',
+    card: '#ffffff',
+    text: '#1e3a8a',
+    muted: '#475569',
+    primary: '#b22234',
+    primaryHover: '#8c1b29',
+    accent: '#3c3b6e',
+    border: '#cbd5e1',
+    header: '#dbeafe',
+    input: '#ffffff'
   },
   {
     id: 'high-contrast',
@@ -490,7 +490,7 @@ export const App: React.FC = () => {
       {/* GLOBAL KEYBOARD SCANNERS INTERCEPTOR */}
       <ScannerListener 
         onScan={handleGlobalBarcodeScan} 
-        isEnabled={isScannerListening} 
+        isEnabled={isScannerListening && activeTab === 'register'} 
       />
 
       {/* TOP HEADER STATUS & BAR */}

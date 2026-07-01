@@ -230,4 +230,72 @@ describe('AdminView Component', () => {
 
     expect(defaultProps.onSaveCustomTheme).toHaveBeenCalled();
   });
+
+  it('handles inline editing of catalog items and saves with theme-primary styled button', async () => {
+    render(<AdminView {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog New Product')).toBeInTheDocument();
+    });
+
+    // The catalog row with "Roman Candle" should be visible
+    await waitFor(() => {
+      expect(screen.getByText('Roman Candle')).toBeInTheDocument();
+    });
+
+    // Click the Edit button for the first catalog item
+    const editBtn = document.getElementById('btn-edit-item-1')!;
+    expect(editBtn).not.toBeNull();
+    fireEvent.click(editBtn);
+
+    // Edit fields should now appear (editing mode)
+    await waitFor(() => {
+      expect(document.getElementById('admin-edit-stock-1')).not.toBeNull();
+    });
+
+    // The Save button should exist and use theme-primary CSS classes
+    const saveBtn = document.getElementById('btn-save-edit-1')!;
+    expect(saveBtn).not.toBeNull();
+    expect(saveBtn.className).toContain('bg-custom-primary/20');
+    expect(saveBtn.className).toContain('border-custom-primary');
+    expect(saveBtn.className).toContain('text-custom-primary');
+
+    // Trigger save
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith('update_item_details', expect.objectContaining({
+        id: 1,
+        name: 'Roman Candle',
+      }));
+    });
+  });
+
+  it('renders receipt preview with correct layout classes (items-start, h-fit)', async () => {
+    render(<AdminView {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Manager Admin Console')).toBeInTheDocument();
+    });
+
+    // Go to Settings to access receipt preview section
+    fireEvent.click(screen.getByText('Settings'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Available Themes')).toBeInTheDocument();
+    });
+
+    // The receipt preview container should use items-start (not stretch cards vertically)
+    // and the receipt card itself should use h-fit
+    const previewContainers = document.querySelectorAll('.overflow-y-auto.max-h-\\[400px\\]');
+    previewContainers.forEach(container => {
+      expect(container.className).toContain('items-start');
+    });
+
+    const receiptCards = document.querySelectorAll('.w-\\[72mm\\]');
+    receiptCards.forEach(card => {
+      expect(card.className).toContain('h-fit');
+    });
+  });
 });
+

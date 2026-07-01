@@ -1485,7 +1485,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                   <button
                                     id={`btn-save-edit-${item.id}`}
                                     onClick={() => handleUpdateItem(item.id)}
-                                    className="p-2 bg-emerald-900/30 border border-emerald-700 text-emerald-400 hover:text-white rounded-lg transition-all"
+                                    className="p-2 bg-custom-primary/20 border border-custom-primary text-custom-primary hover:bg-custom-primary hover:text-white rounded-lg transition-all"
                                     title="Save Changes"
                                   >
                                     <Check className="h-4 w-4" />
@@ -2759,8 +2759,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             {/* Receipt Preview Body (Scoped for printable styles) */}
-            <div className="p-6 bg-custom-input/40 overflow-y-auto max-h-[400px] flex justify-center no-print">
-              <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300 animate-in zoom-in-95 duration-200">
+            <div className="p-6 bg-custom-input/40 overflow-y-auto max-h-[400px] flex justify-center items-start no-print">
+              <div className="w-[72mm] bg-white text-black p-5 font-mono text-[11px] leading-relaxed shadow-lg rounded border border-slate-300 animate-in zoom-in-95 duration-200 h-fit">
                 <div className="text-center border-b border-dashed border-black pb-4 mb-4">
                   <h4 className="font-extrabold text-sm tracking-tight">{organizationName}</h4>
                   {receiptMessage && (

@@ -27,19 +27,19 @@ Below is the directory list of all generated files in the workspace:
 
 ### Frontend Application Structure
 * [src/main.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/main.tsx): React core entry script.
-* [src/index.css](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/index.css): Imports Tailwind, and adds custom animations, glassmorphism utilities, and receipt printing layouts.
+* [src/index.css](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/index.css): Imports Tailwind, and adds custom animations, glassmorphism utilities, custom CSS utility classes (`border-custom-primary`, `text-custom-primary`), and receipt printing layouts.
 * [src/types.ts](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/types.ts): Data structure schemas.
-* [src/App.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/App.tsx): App router dashboard showing active database paths and toggle hooks.
-* [src/components/ScannerListener.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/ScannerListener.tsx): Global scanner listener that intercepts keyboard wedging inputs.
-* [src/components/RegisterView.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/RegisterView.tsx): The POS interface complete with active checkout cart, custom numpad discounts, presets, and receipt formatting.
-* [src/components/AdminView.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/AdminView.tsx): Password-protected manager panel to manage stock catalog, presets, and transaction ledger audits.
+* [src/App.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/App.tsx): App router dashboard showing active database paths and toggle hooks. The `ScannerListener` component is now conditionally gated to only be enabled on the `register` tab (`isEnabled={isScannerListening && activeTab === 'register'}`).
+* [src/components/ScannerListener.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/ScannerListener.tsx): Global scanner listener that intercepts keyboard wedging inputs. Now uses the precise CSS selector `.fixed.z-50` to detect active modal overlays, preventing false-positive blocking on other z-50 elements that are not modals.
+* [src/components/RegisterView.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/RegisterView.tsx): The POS interface complete with active checkout cart, custom numpad discounts, presets, and receipt formatting. The receipt preview container now uses `items-start` and `h-fit` to prevent the virtual receipt from stretching vertically in its scrollable container.
+* [src/components/AdminView.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/AdminView.tsx): Password-protected manager panel to manage stock catalog, presets, and transaction ledger audits. Inline item edit save button now uses `bg-custom-primary/20 border-custom-primary text-custom-primary` classes for consistent theming across all themes. Receipt preview also uses `items-start` and `h-fit` for proper rendering.
 
 ### Tauri Backend wrapper
 * [src-tauri/Cargo.toml](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/Cargo.toml): Rust dependencies.
 * [src-tauri/tauri.conf.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/tauri.conf.json): Tauri v2 configuration (defines windows, titles, icons, and bundle pipelines).
 * [src-tauri/capabilities/default.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/capabilities/default.json): Capability authorization file for client-side API invocations.
 * [src-tauri/src/main.rs](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/src/main.rs): Launches the crate library module entry points.
-* [src-tauri/src/lib.rs](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/src/lib.rs): Manages the SQLite schema,Seeds mock inventory items, and binds all RPC commands.
+* [src-tauri/src/lib.rs](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/src/lib.rs): Manages the SQLite schema, seeds mock inventory items, and binds all RPC commands.
 
 ---
 
@@ -53,6 +53,15 @@ Below is the directory list of all generated files in the workspace:
 | **Prices & Highlights** | Amber-Gold (`#fbbf24` / `#f59e0b`) | Glowing text for total bills and active discounts |
 | **Volunteers Assist** | Extended Padding & Large Fonts | Clean layouts designed for easy touch taps by non-technical helpers |
 
+### Available Themes
+
+| Theme | Background | Text | Primary | Use Case |
+| :--- | :--- | :--- | :--- | :--- |
+| **THC Dark** | `#081a12` (deep green) | `#ffffff` | `#10b981` (emerald) | Indoor / nighttime tent |
+| **THC Light** | `#f0fdf4` (mint) | `#064e3b` (dark green) | `#10b981` (emerald) | Daytime, bright indoor |
+| **Patriotic** | `#f8fafc` (off-white slate) | `#1e3a8a` (navy) | `#b22234` (patriotic red) | Outdoor July 4th events |
+| **High Contrast** | `#ffffff` | `#000000` | `#000000` | Direct sunlight / WCAG max contrast |
+
 ---
 
 ## 🎆 Confetti Feedback
@@ -62,6 +71,8 @@ When a transaction is submitted, the backend logs details and updates inventory.
 
 ## 🖨️ Thermal Receipt Printing Layout
 The receipt layout uses standard `@media print` directives in [src/index.css](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/index.css) to hide navigation, backgrounds, and buttons when printing. The receipt width is set to `80mm` (standard 3-inch thermal receipt rolls) and forces all text to black/monospaced fonts.
+
+The receipt preview container (both in `RegisterView` and `AdminView`) now uses `items-start` and `h-fit` to prevent the receipt card from stretching vertically inside its scrollable wrapper, ensuring the on-screen preview matches the real printed output.
 
 ---
 
@@ -87,6 +98,7 @@ npm run tauri dev
 ```
 * The SQLite database `firework_pos.db` will be initialized in `src-tauri/target/debug/` next to the debug executable.
 * You can test scanner inputs by typing a barcode (e.g. `1001`, `1002`, `85720491`) and hitting `Enter` while clicking outside text boxes.
+  * **Note**: The scanner listener is only active when the **Sales Register** tab is selected. Switching to Admin view automatically disables it.
 * The Admin Panel password is: `fireworks1776`.
 
 ### 📦 Step 3: Build the Standalone Executable
@@ -116,6 +128,7 @@ Located at the bottom of [lib.rs](file:///c:/Users/Jacobs-Desktop/OneDrive/Proje
   * Price and stock adjustments.
   * Sale completion with database stock level decrement validation.
   * Transaction rollback safety: trying to complete a sale with quantity exceeding available stock returns an error and rolls back the database state (verifies stock remains unchanged).
+  * Historical sales seeder producing multi-year summary data.
 * **How to Run**:
   Navigate to `src-tauri` folder and run:
   ```bash
@@ -125,9 +138,9 @@ Located at the bottom of [lib.rs](file:///c:/Users/Jacobs-Desktop/OneDrive/Proje
 ### 2. ⚛️ Frontend React Tests
 Located in [src/components/__tests__/](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/).
 * **Test Suites**:
-  * [ScannerListener.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/ScannerListener.test.tsx): Tests wedging scanner buffer inputs, fast typing thresholds, global browser hooks, and keyboard entry gates.
-  * [RegisterView.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/RegisterView.test.tsx): Tests cart item modifications, subtotal calculations, tax adding math, preset selections, and RPC payload serialization.
-  * [AdminView.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/AdminView.test.tsx): Tests password login flow (`fireworks1776`), creating new items/presets, editing, and expanding ledger drawer details.
+  * [ScannerListener.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/ScannerListener.test.tsx): Tests wedging scanner buffer inputs, fast typing thresholds, global browser hooks, and keyboard entry gates. Includes a new test verifying scanner is suppressed when a `.fixed.z-50` modal element is present in the DOM.
+  * [RegisterView.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/RegisterView.test.tsx): Tests cart item modifications, subtotal calculations, tax adding math, preset selections, and RPC payload serialization. Includes virtual receipt DOM structure assertions.
+  * [AdminView.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/AdminView.test.tsx): Tests password login flow (`fireworks1776`), creating new items/presets, editing, and expanding ledger drawer details. Includes a test for inline item editing with theme-primary styled save button, and receipt preview layout assertions.
 * **How to Run**:
   Navigate to the workspace root and run:
   ```bash
@@ -143,7 +156,7 @@ We have set up a localized Git repository and integrated a secure, serverless up
 ### 🔄 How the Auto-Updater Works
 1. **GitHub Release Assets**: Each compilation build pushes installer assets (e.g. `.msi` installers) and an `updater.json` signature file.
 2. **App Update Checks**: The desktop application requests the latest signatures from `https://github.com/[YOUR_USER]/[YOUR_REPO]/releases/latest/download/updater.json` at startup.
-3. **Banner Notification**: If a new release version is published (e.g. `v1.0.1`), a banner automatically slides in at the top of the interface displaying changelog descriptions.
+3. **Banner Notification**: If a new release version is published (e.g. `v26.1.3`), a banner automatically slides in at the top of the interface displaying changelog descriptions.
 4. **Direct Download**: Clicking **Download & Install** fetches the binary, shows real-time progress, validates signatures, and launches `relaunch()` to reload the app with the new version.
 
 ### 📝 Next Deployment Steps for You (GitHub Connection)
@@ -172,12 +185,11 @@ To connect this local workspace to your GitHub repository and build automatic re
      }
      ```
 3. **Push Version Tag to Build**:
-   To build a release installer, update your `version` in [package.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/package.json) and [tauri.conf.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/tauri.conf.json) to `1.0.1`, then tag and push:
+   To build a release installer, update your `version` in [package.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/package.json) and [tauri.conf.json](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src-tauri/tauri.conf.json), then tag and push:
    ```bash
    git add .
    git commit -m "Bump version for release"
-   git tag v1.0.1
+   git tag v26.1.3
    git push origin main --tags
    ```
-   The GitHub Actions workflow [release.yml](file:///.github/workflows/release.yml) will trigger automatically, compile the MSI installer on a Windows runner, and host it as a GitHub release!
-
+   The GitHub Actions workflow [release.yml](file:///.github/workflows/release.yml) will trigger automatically, compile the NSIS installer on a Windows runner, and host it as a GitHub release!

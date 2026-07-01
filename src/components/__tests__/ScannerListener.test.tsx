@@ -74,4 +74,51 @@ describe('ScannerListener Component', () => {
     // Clean up
     document.body.removeChild(input);
   });
+
+  it('ignores inputs when a fixed modal overlay (.fixed.z-50) is open', () => {
+    const handleScan = vi.fn();
+    render(<ScannerListener onScan={handleScan} isEnabled={true} />);
+
+    // Simulate a modal overlay being present in the DOM
+    const modal = document.createElement('div');
+    modal.className = 'fixed z-50';
+    document.body.appendChild(modal);
+
+    // Scanner should be suppressed while modal is open
+    ['1', '0', '0', '5', 'Enter'].forEach(key => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    });
+
+    expect(handleScan).not.toHaveBeenCalled();
+
+    // Remove modal — scanner should resume
+    document.body.removeChild(modal);
+
+    ['1', '0', '0', '6', 'Enter'].forEach(key => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    });
+
+    expect(handleScan).toHaveBeenCalledTimes(1);
+    expect(handleScan).toHaveBeenCalledWith('1006');
+  });
+
+  it('does NOT suppress scanner for non-fixed z-50 elements (only fixed modals)', () => {
+    const handleScan = vi.fn();
+    render(<ScannerListener onScan={handleScan} isEnabled={true} />);
+
+    // A z-50 element that is NOT fixed (e.g. an absolutely positioned badge)
+    const badge = document.createElement('div');
+    badge.className = 'z-50'; // not "fixed z-50"
+    document.body.appendChild(badge);
+
+    ['2', '0', '0', '1', 'Enter'].forEach(key => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    });
+
+    // Scanner should NOT be blocked — the element is z-50 but not fixed
+    expect(handleScan).toHaveBeenCalledTimes(1);
+    expect(handleScan).toHaveBeenCalledWith('2001');
+
+    document.body.removeChild(badge);
+  });
 });
