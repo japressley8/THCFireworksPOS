@@ -95,6 +95,19 @@ jobs:
           Copy-Item -Path src-tauri/target/release/fireworks-pos-app.exe -Destination src-tauri/target/release/THC_Fireworks_Portable.exe
           gh release upload ${{ github.ref_name }} src-tauri/target/release/THC_Fireworks_Portable.exe --clobber
           
+          # Create a packaged portable structure containing the executable and its resource binaries (GoDaddy bridge)
+          New-Item -ItemType Directory -Force -Path src-tauri/target/release/portable
+          Copy-Item -Path src-tauri/target/release/fireworks-pos-app.exe -Destination src-tauri/target/release/portable/THC_Fireworks_Portable.exe
+          Copy-Item -Path src-tauri/binaries -Destination src-tauri/target/release/portable/binaries -Recurse -Force
+          
+          # Compress the portable directory containing both the POS app and the bridge binaries
+          Compress-Archive -Path src-tauri/target/release/portable/* -DestinationPath src-tauri/target/release/THC_Fireworks_Portable.zip -Force
+          gh release upload ${{ github.ref_name }} src-tauri/target/release/THC_Fireworks_Portable.zip --clobber
+
+          # Also package and upload the GoDaddy bridge binaries separately
+          Compress-Archive -Path src-tauri/binaries/* -DestinationPath src-tauri/target/release/godaddy-bridge.zip -Force
+          gh release upload ${{ github.ref_name }} src-tauri/target/release/godaddy-bridge.zip --clobber
+          
           # Delete the NSIS setup installer and its signature asset from the release page to avoid confusion and SmartScreen installer warnings
           gh release delete-asset ${{ github.ref_name }} "$($installerFile.Name)" -y
           gh release delete-asset ${{ github.ref_name }} "$($installerFile.Name).sig" -y
