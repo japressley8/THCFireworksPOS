@@ -4461,6 +4461,7 @@ pub fn run() {
             godaddy_show_second_screen,
             godaddy_scan_barcode,
             godaddy_start_sidecar,
+            prepare_update,
             list_system_printers,
             list_system_keyboards,
             print_to_named_printer,
@@ -4881,12 +4882,12 @@ fn call_sidecar(app_handle: &tauri::AppHandle, cmd: &str, params: serde_json::Va
 }
 
 #[tauri::command]
-fn godaddy_ping_terminal(app_handle: tauri::AppHandle, ip: String) -> Result<bool, String> {
+async fn godaddy_ping_terminal(app_handle: tauri::AppHandle, ip: String) -> Result<bool, String> {
     log_app_event("info", &format!("[GoDaddy] Ping terminal started for IP: {}", ip));
     if is_godaddy_mock_enabled() {
         let behavior = get_godaddy_mock_behavior();
         if behavior == "timeout" {
-            std::thread::sleep(std::time::Duration::from_millis(2000));
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
             log_app_event("error", "[GoDaddy] Mock ping terminal timed out");
             return Err("Mock timeout error connecting to terminal".to_string());
         }
@@ -4913,7 +4914,7 @@ fn godaddy_ping_terminal(app_handle: tauri::AppHandle, ip: String) -> Result<boo
 }
 
 #[tauri::command]
-fn godaddy_pair_terminal(app_handle: tauri::AppHandle, ip: String, pairing_code: String) -> Result<String, String> {
+async fn godaddy_pair_terminal(app_handle: tauri::AppHandle, ip: String, pairing_code: String) -> Result<String, String> {
     log_app_event("info", &format!("[GoDaddy] Pairing terminal started for IP: {} code: {}", ip, pairing_code));
     if is_godaddy_mock_enabled() {
         use tauri::Emitter;
@@ -4921,7 +4922,7 @@ fn godaddy_pair_terminal(app_handle: tauri::AppHandle, ip: String, pairing_code:
             "type": "pair",
             "pairingCode": pairing_code.clone()
         }));
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
         let behavior = get_godaddy_mock_behavior();
         if behavior == "decline" {
             log_app_event("error", "[GoDaddy] Mock pairing declined by terminal");
@@ -4966,7 +4967,7 @@ fn godaddy_pair_terminal(app_handle: tauri::AppHandle, ip: String, pairing_code:
 }
 
 #[tauri::command]
-fn godaddy_initiate_payment(
+async fn godaddy_initiate_payment(
     app_handle: tauri::AppHandle,
     ip: String,
     token: String,
@@ -4984,15 +4985,15 @@ fn godaddy_initiate_payment(
             "behavior": behavior.clone()
         }));
         if behavior == "decline" {
-            std::thread::sleep(std::time::Duration::from_millis(2000));
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
             log_app_event("error", "[GoDaddy] Mock payment declined");
             return Err("GoDaddy Smart Terminal communication failed: Transaction declined by customer".to_string());
         } else if behavior == "timeout" {
-            std::thread::sleep(std::time::Duration::from_millis(4000));
+            tokio::time::sleep(tokio::time::Duration::from_millis(4000)).await;
             log_app_event("error", "[GoDaddy] Mock payment timed out");
             return Err("GoDaddy Smart Terminal communication failed: Request timed out".to_string());
         }
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         let mock_tx = format!("MOCK_TX_{}", rand_number());
         log_app_event("info", &format!("[GoDaddy] Mock payment succeeded: {}", mock_tx));
         return Ok(mock_tx);
@@ -5025,7 +5026,7 @@ fn godaddy_initiate_payment(
 }
 
 #[tauri::command]
-fn godaddy_print_receipt(
+async fn godaddy_print_receipt(
     app_handle: tauri::AppHandle,
     ip: String,
     token: String,
@@ -5056,7 +5057,7 @@ fn godaddy_print_receipt(
 }
 
 #[tauri::command]
-fn godaddy_refund_transaction(
+async fn godaddy_refund_transaction(
     app_handle: tauri::AppHandle,
     ip: String,
     token: String,
@@ -5070,7 +5071,7 @@ fn godaddy_refund_transaction(
             "transactionId": transaction_id.clone(),
             "amount": amount_cents
         }));
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         return Ok(format!("REFUND_MOCK_{}", rand_number()));
     }
 
@@ -5093,7 +5094,7 @@ fn godaddy_refund_transaction(
 }
 
 #[tauri::command]
-fn godaddy_void_transaction(
+async fn godaddy_void_transaction(
     app_handle: tauri::AppHandle,
     ip: String,
     token: String,
@@ -5105,7 +5106,7 @@ fn godaddy_void_transaction(
             "type": "void",
             "transactionId": transaction_id.clone()
         }));
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
         return Ok(format!("VOID_MOCK_{}", rand_number()));
     }
 
@@ -5127,9 +5128,9 @@ fn godaddy_void_transaction(
 }
 
 #[tauri::command]
-fn godaddy_discover_terminals(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
+async fn godaddy_discover_terminals(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
     if is_godaddy_mock_enabled() {
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         return Ok(vec!["192.168.1.150".to_string(), "192.168.1.200".to_string()]);
     }
 
@@ -5141,7 +5142,7 @@ fn godaddy_discover_terminals(app_handle: tauri::AppHandle) -> Result<Vec<String
 }
 
 #[tauri::command]
-fn godaddy_show_second_screen(
+async fn godaddy_show_second_screen(
     app_handle: tauri::AppHandle,
     ip: String,
     token: String,
@@ -5165,13 +5166,13 @@ fn godaddy_show_second_screen(
 }
 
 #[tauri::command]
-fn godaddy_scan_barcode(
+async fn godaddy_scan_barcode(
     app_handle: tauri::AppHandle,
     ip: String,
     token: String
 ) -> Result<String, String> {
     if is_godaddy_mock_enabled() {
-        std::thread::sleep(std::time::Duration::from_millis(2000));
+        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
         return Ok("MOCK_LOYALTY_BARCODE_888".to_string());
     }
 
@@ -5190,11 +5191,35 @@ fn godaddy_scan_barcode(
 }
 
 #[tauri::command]
-fn godaddy_start_sidecar(app_handle: tauri::AppHandle) -> Result<(), String> {
+async fn godaddy_start_sidecar(app_handle: tauri::AppHandle) -> Result<(), String> {
     if is_godaddy_mock_enabled() {
         return Ok(());
     }
     let _guard = get_or_start_sidecar(&app_handle)?;
+    Ok(())
+}
+
+/// Kill all active sidecar child processes before the NSIS updater overwrites files.
+///
+/// On Windows, a running .exe file is locked by the OS and cannot be replaced.
+/// The frontend calls this command immediately before `installUpdate()` so that
+/// `godaddy-bridge.exe` (and any future sidecars stored in the same static) are
+/// freed from their file locks before the NSIS installer tries to overwrite them.
+///
+/// The kill is best-effort: errors are swallowed so a non-running sidecar or a
+/// lock failure never prevents a valid update from proceeding.
+#[tauri::command]
+async fn prepare_update() -> Result<(), String> {
+    if let Some(mutex) = SIDECAR.get() {
+        if let Ok(mut guard) = mutex.lock() {
+            if let Some(conn) = guard.as_mut() {
+                let _ = conn.child.kill(); // best-effort; ignore error if already exited
+                let _ = conn.child.wait(); // reap zombie so the OS releases the handle
+            }
+            *guard = None; // clear the slot so re-launch after update starts fresh
+        }
+    }
+    log_app_event("info", "prepare_update: sidecar processes killed, ready for update installation.");
     Ok(())
 }
 

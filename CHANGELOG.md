@@ -2,6 +2,20 @@
 
 All notable changes to the THC Fireworks POS system will be documented in this file.
 
+## [27.1.1] - 2026-07-14
+
+### Added
+- **Native One-Click Auto-Updater**:
+  - Replaced the "link-to-GitHub" manual update flow with Tauri's native signed updater. Users now see an "Update & Restart" button that downloads, cryptographically verifies, and installs updates automatically — no manual file replacement needed.
+  - CI/CD release pipeline rewritten: each GitHub release now produces exactly two assets (`THC_Fireworks.zip` — the signed NSIS update payload — and `updater.json` — the updater manifest). All legacy loose `.exe`, portable `.zip`, and `godaddy-bridge.zip` assets are removed from releases.
+  - Added `prepare_update` Rust backend command that kills the GoDaddy bridge sidecar process before the NSIS installer runs, preventing Windows file-lock errors during update.
+  - Added graceful permission-error handling: if the app is running from a protected directory (e.g., `C:\Program Files`), the update UI surfaces a clear advisory message prompting users to move the folder to Documents or Desktop.
+  - Added "View release history on GitHub" secondary link in Settings > App Updates panel.
+  - Forward-compatible `updater.json` schema with `platforms` key — ready for macOS and Linux targets without schema changes.
+- **Automated Tests**:
+  - Added `UpdateModal.test.tsx` covering: correct button labels, `prepare_update` call ordering, permission error advisory message, generic error display, and close-button disabled state during install.
+  - Extended `AdminView.test.tsx` with 3 new tests for the App Updates settings panel.
+
 ## [27.1.0] - 2026-07-14
 
 ### Added

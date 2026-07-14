@@ -177,6 +177,8 @@ export const App: React.FC = () => {
   // Updater states
   const [updateAvailable, setUpdateAvailable] = useState<any>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState<boolean>(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const [showAdminWarning, setShowAdminWarning] = useState<boolean>(false);
 
   // Easter egg states
@@ -682,9 +684,49 @@ export const App: React.FC = () => {
     try {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       await openUrl('https://github.com/japressley8/THCFireworksPOS/releases');
-      setShowUpdateModal(false);
     } catch (err) {
-      showCustomAlert('Failed to open download page: ' + err, 'Error');
+      showCustomAlert('Failed to open releases page: ' + err, 'Error');
+    }
+  };
+
+  /**
+   * One-click native update flow:
+   * 1. Kill the GoDaddy bridge sidecar so its .exe is not file-locked on Windows.
+   * 2. Tauri downloads, cryptographically verifies, and applies the NSIS update payload.
+   * 3. App relaunches automatically on the new version.
+   *
+   * Permission errors (e.g. running from C:\Program Files) are caught and surfaced
+   * as an actionable message advising the user to move to a writable location.
+   */
+  const handleInstallUpdate = async () => {
+    if (!updateAvailable || isInstallingUpdate) return;
+    setIsInstallingUpdate(true);
+    setUpdateError(null);
+    try {
+      // Kill sidecar processes so no .exe files are locked during the NSIS install
+      await invoke('prepare_update');
+      // Download + install via Tauri (handles signature verification internally)
+      await updateAvailable.downloadAndInstall();
+      // Relaunch into the new version
+      const { relaunch } = await import('@tauri-apps/plugin-process');
+      await relaunch();
+    } catch (err: any) {
+      const msg = String(err);
+      const isPermission =
+        msg.toLowerCase().includes('access') ||
+        msg.toLowerCase().includes('denied') ||
+        msg.toLowerCase().includes('permission') ||
+        msg.toLowerCase().includes('unauthorized');
+      if (isPermission) {
+        setUpdateError(
+          'Update failed: permission denied. This app may be running from a ' +
+          'protected folder (e.g. C:\\Program Files). ' +
+          'Move the app folder to your Documents or Desktop and try again.'
+        );
+      } else {
+        setUpdateError('Update failed: ' + msg);
+      }
+      setIsInstallingUpdate(false);
     }
   };
 
@@ -799,22 +841,25 @@ export const App: React.FC = () => {
             {/* Header branding band */}
             <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-600 via-white to-blue-600" />
 
-            {/* Close / Remind Later top button */}
+            {/* Close button — disabled while installing */}
             <button
               id="btn-update-close"
-              onClick={() => setShowUpdateModal(false)}
-              className="absolute top-4 right-4 p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-muted hover:text-custom-text rounded-xl transition-all"
+              onClick={() => { if (!isInstallingUpdate) { setShowUpdateModal(false); setUpdateError(null); } }}
+              disabled={isInstallingUpdate}
+              className="absolute top-4 right-4 p-2 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-muted hover:text-custom-text rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X className="h-4 w-4" />
             </button>
 
             <div className="flex items-center gap-3.5 mb-5 mt-2">
               <div className="p-3 bg-custom-primary/25 text-custom-primary rounded-2xl border border-custom-primary/30">
-                <ArrowUpCircle className="h-6 w-6 text-custom-accent animate-bounce" />
+                <ArrowUpCircle className={`h-6 w-6 text-custom-accent ${isInstallingUpdate ? 'animate-spin' : 'animate-bounce'}`} />
               </div>
               <div>
                 <h3 className="text-lg font-black text-custom-text uppercase tracking-tight">Software Update</h3>
-                <p className="text-[10px] text-custom-muted font-bold uppercase tracking-wider">New Release Found on GitHub</p>
+                <p className="text-[10px] text-custom-muted font-bold uppercase tracking-wider">
+                  {isInstallingUpdate ? 'Downloading & Installing…' : 'New Version Available'}
+                </p>
               </div>
             </div>
 
@@ -836,25 +881,50 @@ export const App: React.FC = () => {
                 )}
               </div>
 
-              <p className="text-xs text-custom-muted leading-relaxed mt-2">
-                To keep your app <strong className="text-custom-accent">100% portable</strong> on your USB drive, clicking below will open the GitHub Releases page in your web browser.
-                Simply download the new <code className="text-custom-text font-mono font-bold bg-custom-input px-1 py-0.5 rounded">fireworks-pos-app.exe</code> directly to your USB drive and replace the old file.
-              </p>
+              {/* Permission / download error display */}
+              {updateError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3">
+                  <p className="text-xs text-red-400 leading-relaxed font-medium">
+                    {updateError}
+                  </p>
+                </div>
+              )}
+
+              {isInstallingUpdate && (
+                <p className="text-[10px] text-custom-muted text-center leading-relaxed">
+                  Please wait — the update is downloading and verifying.&nbsp;
+                  <strong className="text-custom-accent">Do not close the app.</strong>
+                </p>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button
                   id="btn-update-remind-later"
-                  onClick={() => setShowUpdateModal(false)}
-                  className="flex-1 py-3 bg-custom-input hover:bg-custom-primary/10 border border-custom-border text-custom-text font-bold text-xs rounded-xl transition-all active:scale-95 shadow"
+                  onClick={() => { setShowUpdateModal(false); setUpdateError(null); }}
+                  disabled={isInstallingUpdate}
+                  className="flex-1 py-3 bg-custom-input hover:bg-custom-primary/10 border border-custom-border text-custom-text font-bold text-xs rounded-xl transition-all active:scale-95 shadow disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Remind Me Later
                 </button>
                 <button
                   id="btn-update-execute"
-                  onClick={handleOpenReleasesPage}
-                  className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10"
+                  onClick={handleInstallUpdate}
+                  disabled={isInstallingUpdate}
+                  className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Download Update
+                  {isInstallingUpdate ? 'Installing…' : 'Update & Restart'}
+                </button>
+              </div>
+
+              {/* Secondary fallback link */}
+              <div className="text-center pt-1">
+                <button
+                  id="btn-update-view-github"
+                  onClick={handleOpenReleasesPage}
+                  disabled={isInstallingUpdate}
+                  className="text-[10px] text-custom-muted hover:text-custom-accent underline underline-offset-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  View releases on GitHub
                 </button>
               </div>
             </div>

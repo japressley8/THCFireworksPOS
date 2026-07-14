@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   push:
@@ -44,70 +44,88 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'THC Fireworks v__VERSION__'
-          releaseBody: 'Release details for THC Fireworks POS.'
+          releaseBody: 'See the full changelog below.'
           releaseDraft: false
           prerelease: ${{ contains(github.ref, '-pre') || contains(github.ref, '-rc') }}
 
-      - name: Create Updater JSON
+      # -------------------------------------------------------------------------
+      # Asset Curation
+      # Renames the Tauri-generated signed NSIS update payload to THC_Fireworks.zip,
+      # generates updater.json, and removes all unwanted release assets.
+      # Final release will contain exactly 2 files:
+      #   THC_Fireworks.zip  - signed NSIS update payload (downloaded by Tauri updater)
+      #   updater.json       - Tauri updater manifest (endpoint in tauri.conf.json)
+      # -------------------------------------------------------------------------
+      - name: Curate Release Assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
-          
-          # Locate built installer file and signature
-          $installerFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*setup.exe" -Recurse | Select-Object -First 1
-          if ($null -eq $installerFile) {
-            $installerFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "*.exe" -Recurse | Select-Object -First 1
-          }
-          
-          $sigFile = Get-ChildItem -Path src-tauri/target/release/bundle -Filter "$($installerFile.Name).sig" -Recurse | Select-Object -First 1
-          
-          if ($null -eq $installerFile -or $null -eq $sigFile) {
-             Write-Error "Could not locate installer exe or sig file!"
-             exit 1
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $tag     = "${{ github.ref_name }}"
+          $repo    = "${{ github.repository }}"
+
+          # Locate build artifacts produced by tauri-action with createUpdaterArtifacts:true
+          $nsisZip = Get-ChildItem -Path src-tauri/target/release/bundle `
+                       -Filter "*.nsis.zip" -Recurse | Select-Object -First 1
+          $sigFile  = Get-ChildItem -Path src-tauri/target/release/bundle `
+                       -Filter "*.nsis.zip.sig" -Recurse | Select-Object -First 1
+          $nsisExe  = Get-ChildItem -Path src-tauri/target/release/bundle `
+                       -Filter "*-setup.exe" -Recurse | Select-Object -First 1
+
+          if ($null -eq $nsisZip -or $null -eq $sigFile) {
+            Write-Error "ERROR: Could not find .nsis.zip or .nsis.zip.sig in the build output."
+            exit 1
           }
 
-          $signature = Get-Content -Path $sigFile.FullName -Raw
-          $signature = $signature.Trim()
-          
-          # Read public key from config or environment
-          $pubkey = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzNEVBRDhGMDU5QTVCRDkKUldUWlc1b0ZqNjFPSTZMNVc5WTlMcFR3bzNsSzBQTC9hUzM0UmRBY211RFpsaVd2K2dhZVI5Tm8K"
+          Write-Host "NSIS zip : $($nsisZip.FullName)"
+          Write-Host "Sig file : $($sigFile.FullName)"
 
-          $json = @{
-            version = "$version"
-            notes = "Automated Release for ${{ github.ref_name }}"
-            pubkey = $pubkey
-            platforms = @{
-              "windows-x86_64" = @{
+          # Read the detached minisign signature
+          $signature = (Get-Content -Path $sigFile.FullName -Raw).Trim()
+
+          # Upload THC_Fireworks.zip (renamed, signed NSIS update payload)
+          Copy-Item -Path $nsisZip.FullName -Destination "THC_Fireworks.zip"
+          gh release upload $tag "THC_Fireworks.zip" --clobber
+          Write-Host "Uploaded THC_Fireworks.zip"
+
+          # Generate updater.json
+          # Forward-compatible schema: add platform keys when macOS/Linux targets are added
+          $pubDate   = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
+          $updateUrl = "https://github.com/$repo/releases/download/$tag/THC_Fireworks.zip"
+
+          $manifest = [ordered]@{
+            version  = $version
+            notes    = "See the full changelog at https://github.com/$repo/releases/tag/$tag"
+            pub_date = $pubDate
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
                 signature = $signature
-                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/THC_Fireworks_Portable.exe"
+                url       = $updateUrl
               }
             }
           }
-          
-          $json | ConvertTo-Json -Depth 5 | Out-File -FilePath updater.json -Encoding utf8
-          
-          # Upload updater.json to the release
-          gh release upload ${{ github.ref_name }} updater.json --clobber
-          
-          # Copy and upload the raw portable standalone exe to the release
-          Copy-Item -Path src-tauri/target/release/fireworks-pos-app.exe -Destination src-tauri/target/release/THC_Fireworks_Portable.exe
-          gh release upload ${{ github.ref_name }} src-tauri/target/release/THC_Fireworks_Portable.exe --clobber
-          
-          # Create a packaged portable structure containing the executable and its resource binaries (GoDaddy bridge)
-          New-Item -ItemType Directory -Force -Path src-tauri/target/release/portable
-          Copy-Item -Path src-tauri/target/release/fireworks-pos-app.exe -Destination src-tauri/target/release/portable/THC_Fireworks_Portable.exe
-          Copy-Item -Path src-tauri/binaries -Destination src-tauri/target/release/portable/binaries -Recurse -Force
-          
-          # Compress the portable directory containing both the POS app and the bridge binaries
-          Compress-Archive -Path src-tauri/target/release/portable/* -DestinationPath src-tauri/target/release/THC_Fireworks_Portable.zip -Force
-          gh release upload ${{ github.ref_name }} src-tauri/target/release/THC_Fireworks_Portable.zip --clobber
 
-          # Also package and upload the GoDaddy bridge binaries separately
-          Compress-Archive -Path src-tauri/binaries/* -DestinationPath src-tauri/target/release/godaddy-bridge.zip -Force
-          gh release upload ${{ github.ref_name }} src-tauri/target/release/godaddy-bridge.zip --clobber
-          
-          # Delete the NSIS setup installer and its signature asset from the release page to avoid confusion and SmartScreen installer warnings
-          gh release delete-asset ${{ github.ref_name }} "$($installerFile.Name)" -y
-          gh release delete-asset ${{ github.ref_name }} "$($installerFile.Name).sig" -y
+          $manifest | ConvertTo-Json -Depth 5 | `
+            Out-File -FilePath "updater.json" -Encoding utf8NoBOM
+          gh release upload $tag "updater.json" --clobber
+          Write-Host "Uploaded updater.json"
+
+          # Delete all unwanted release assets
+          $toDelete = @()
+          if ($nsisExe) {
+            $toDelete += $nsisExe.Name
+            $toDelete += "$($nsisExe.Name).sig"
+          }
+          $toDelete += $nsisZip.Name
+          $toDelete += $sigFile.Name
+          $toDelete += "THC_Fireworks_Portable.exe"
+          $toDelete += "THC_Fireworks_Portable.zip"
+          $toDelete += "godaddy-bridge.zip"
+
+          foreach ($asset in $toDelete) {
+            Write-Host "Removing asset (if present): $asset"
+            gh release delete-asset $tag $asset --yes 2>$null
+          }
+
+          Write-Host "Release curation complete. Final assets: THC_Fireworks.zip, updater.json"

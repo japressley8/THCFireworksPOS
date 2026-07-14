@@ -546,6 +546,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (subTab === 'devices') {
       fetchPrinters();
       fetchKeyboards();
+      checkGodaddyConnection();
     }
   }, [subTab]);
 
@@ -1859,11 +1860,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
       const ok = await invoke<boolean>('godaddy_ping_terminal', { ip: godaddyTerminalIp });
       if (ok) {
         setGodaddyPingStatus('Success: Connected to terminal port 55555!');
+        setGodaddyConnected(true);
       } else {
         setGodaddyPingStatus('Failed to establish local socket connection.');
+        setGodaddyConnected(false);
       }
     } catch (err) {
       setGodaddyPingStatus('Failed: ' + err);
+      setGodaddyConnected(false);
     } finally {
       setIsGodaddyPinging(false);
     }
@@ -1929,6 +1933,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
     try {
       await invoke('save_setting', { key: 'godaddy_terminal_ip', value: ip });
       triggerNotice(`Terminal IP set to ${ip}`, 'success');
+      if (ip) {
+        setIsCheckingGodaddyConnection(true);
+        try {
+          const ok = await invoke<boolean>('godaddy_ping_terminal', { ip });
+          setGodaddyConnected(ok);
+        } catch (e) {
+          setGodaddyConnected(false);
+        } finally {
+          setIsCheckingGodaddyConnection(false);
+        }
+      } else {
+        setGodaddyConnected(false);
+      }
     } catch (err) {
       console.error("Failed to save terminal IP", err);
     }
@@ -2052,7 +2069,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const checkGodaddyConnection = async () => {
-    if (!godaddyTerminalIp || godaddyTerminalIp === 'mock') {
+    if (!godaddyTerminalIp) {
       setGodaddyConnected(false);
       return;
     }
@@ -6159,6 +6176,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <h3 className="text-base font-bold text-custom-text flex items-center justify-between border-b border-custom-border pb-3">
                   <div className="flex items-center gap-2">
                     <MonitorSmartphone className="h-4 w-4 text-custom-accent" /> GoDaddy Terminal Integration
+                    {godaddyPairingStatus === 'paired' && (
+                      <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 ${
+                        godaddyConnected === true
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : godaddyConnected === false
+                          ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                          : 'bg-custom-input/60 text-custom-muted border border-custom-border/40'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          godaddyConnected === true
+                            ? 'bg-emerald-400 animate-pulse'
+                            : godaddyConnected === false
+                            ? 'bg-red-400'
+                            : 'bg-custom-muted'
+                        }`} />
+                        {godaddyConnected === true ? 'Online' : godaddyConnected === false ? 'Offline' : 'Checking...'}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => setShowGodaddyHelp(true)}
@@ -7151,7 +7186,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <div>
                     <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">Current Version</span>
                     <span className="text-[10px] text-custom-muted mt-0.5 block">{packageJson.version}</span>
-                    <span className="text-[10px] text-custom-muted mt-1 block">Check for newer portable software versions on GitHub.</span>
+                    <span className="text-[10px] text-custom-muted mt-1 block">
+                      Updates are applied automatically with one click — no manual download needed.
+                    </span>
                   </div>
                   <button
                     id="btn-admin-check-update"
@@ -7160,6 +7197,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="px-4 py-2 bg-custom-primary hover:bg-custom-primary-hover active:scale-95 text-white font-extrabold text-xs rounded-lg transition-all shadow disabled:opacity-50 shrink-0"
                   >
                     {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
+                  </button>
+                </div>
+
+                <div className="border-t border-custom-border/40 pt-3">
+                  <button
+                    id="btn-admin-view-releases"
+                    onClick={async () => {
+                      try {
+                        const { openUrl } = await import('@tauri-apps/plugin-opener');
+                        await openUrl('https://github.com/japressley8/THCFireworksPOS/releases');
+                      } catch (err) {
+                        await handleAlert('Failed to open releases page: ' + err, 'Error');
+                      }
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] text-custom-muted hover:text-custom-accent underline underline-offset-2 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                    View release history on GitHub
                   </button>
                 </div>
               </div>
