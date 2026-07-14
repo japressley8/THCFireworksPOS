@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\Jacobs-Desktop\\OneDrive\\Projects\\THCFireworksPOS\\godaddy-bridge\\godaddy-bridge.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\Jacobs-Desktop\\OneDrive\\Projects\\THCFireworksPOS\\godaddy-bridge\\godaddy-bridge.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Jacobs-Desktop\\OneDrive\\Projects\\THCFireworksPOS\\godaddy-bridge\\godaddy-bridge.csproj",
+        "projectName": "godaddy-bridge",
+        "projectPath": "C:\\Users\\Jacobs-Desktop\\OneDrive\\Projects\\THCFireworksPOS\\godaddy-bridge\\godaddy-bridge.csproj",
+        "packagesPath": "C:\\Users\\Jacobs-Desktop\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Jacobs-Desktop\\OneDrive\\Projects\\THCFireworksPOS\\godaddy-bridge\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\Jacobs-Desktop\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net48"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net48": {
+            "targetAlias": "net48",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net48": {
+          "targetAlias": "net48",
+          "dependencies": {
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.3, )"
+            },
+            "RestSharpSigned": {
+              "target": "Package",
+              "version": "[105.2.3, )"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.315\\RuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "win-x86": {
+          "#import": []
+        }
+      }
+    }
+  }
+}

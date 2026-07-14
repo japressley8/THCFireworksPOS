@@ -72,18 +72,27 @@
   }
   
   #receipt-print-area {
+    display: block !important;
     position: absolute;
     left: 0;
     top: 0;
-    width: 80mm; /* Standard 3-inch (80mm) thermal paper width */
-    max-width: 80mm;
     margin: 0;
     padding: 4mm;
     background: white !important;
     color: black !important;
     font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
-    font-size: 11px !important;
+    font-size: var(--receipt-font-size, 11px) !important;
     line-height: 1.4 !important;
+  }
+
+  #receipt-print-area.width-58mm {
+    width: 58mm !important;
+    max-width: 58mm !important;
+  }
+
+  #receipt-print-area.width-80mm {
+    width: 80mm !important;
+    max-width: 80mm !important;
   }
   
   /* Reset typography colors for print */

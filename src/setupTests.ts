@@ -17,8 +17,18 @@ vi.mock('@tauri-apps/api/core', () => {
       if (cmd === 'get_db_path') {
         return Promise.resolve('mocked_database_path.db');
       }
+      if (cmd === 'check_developer_bypass') {
+        return Promise.resolve(false);
+      }
       return Promise.resolve(null);
     })
+  };
+});
+
+vi.mock('@tauri-apps/api/event', () => {
+  return {
+    listen: vi.fn(() => Promise.resolve(() => {})),
+    emit: vi.fn(() => Promise.resolve())
   };
 });
 

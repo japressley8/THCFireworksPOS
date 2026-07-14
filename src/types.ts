@@ -11,6 +11,9 @@ export interface Item {
   unit_cost?: number;
   tax_id?: number | null;
   video_path?: string | null;
+  is_invalid?: boolean;
+  missing_fields?: string;
+  discount_tags?: string;
 }
 
 export interface Tax {
@@ -23,8 +26,20 @@ export interface Tax {
 export interface Discount {
   id: number;
   name: string;
-  type: 'percentage' | 'fixed';
-  value: number;
+  type: 'percentage' | 'fixed'; // Keep for backwards compatibility
+  value: number;                // Keep for backwards compatibility
+  qualifier_type: 'item_quantity' | 'order_total' | 'manual';
+  qualifier_value: number;
+  reward_type: 'item_discount_qty' | 'item_discount_all' | 'lowest_cost_item' | 'items_for_price' | 'order_discount';
+  reward_value: number;
+  reward_value_type: 'percentage' | 'fixed';
+  reward_quantity: number;
+  reward_target_item_id?: number | null;
+  reward_lowest_cost_linked_item_id?: number | null;
+  discount_tag: string;
+  max_limit_per_order?: number | null;
+  value_cap?: number | null;
+  is_stackable: number; // 0 = false, 1 = true
 }
 
 export interface CartItem {
@@ -43,6 +58,12 @@ export interface SaleItemDetail {
   price_at_sale: number;
 }
 
+export interface DeleteSaleConfirmation {
+  saleId: number;
+  timestamp: string;
+  finalTotal: number;
+}
+
 export interface Sale {
   id: number;
   timestamp: string;
@@ -51,6 +72,20 @@ export interface Sale {
   tax_total: number;
   final_total: number;
   items?: SaleItemDetail[]; // Populated in admin view
+  payment_method?: string;
+  godaddy_transaction_id?: string;
+  transaction_fee?: number;
+  status?: string;
+}
+
+export interface PaymentMethod {
+  id: number;
+  name: string;
+  enabled: number;
+  fee_percentage: number;
+  fee_flat: number;
+  is_custom: number;
+  status: string;
 }
 
 export interface Theme {
@@ -78,6 +113,7 @@ export interface YearSummary {
   ticket_count: number;
   avg_ticket_value: number;
   profit: number;
+  total_fees: number;
 }
 
 export interface DaySummary {
@@ -92,4 +128,32 @@ export interface PriceHistoryEntry {
   item_name: string;
   year: string;
   price: number;
+}
+
+export type ExportableTable =
+  | 'items'
+  | 'discounts'
+  | 'taxes'
+  | 'sales'
+  | 'sale_items'
+  | 'settings'
+  | 'item_price_history'
+  | 'payment_methods';
+
+export interface BackupRestoreInfo {
+  restored: boolean;
+  restored_at: string | null;
+  local_backup_last_updated: string | null;
+}
+
+export interface CloudBackupStatus {
+  is_connected: boolean;
+  account_email: string | null;
+  last_backup_at: string | null;
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
 }

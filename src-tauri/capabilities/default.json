@@ -1,10 +1,11 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema-capabilities.json",
   "identifier": "default",
-  "description": "Default capabilities for LibertyPOS",
+  "description": "Default capabilities for THC Fireworks POS",
   "windows": [
     "main",
-    "playback"
+    "playback",
+    "developer"
   ],
   "permissions": [
     "core:default",

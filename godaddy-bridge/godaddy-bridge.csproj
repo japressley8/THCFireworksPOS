@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>godaddy-bridge</AssemblyName>
+    <RootNamespace>godaddy_bridge</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Platforms>AnyCPU</Platforms>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="PoyntPOSBridge">
+      <HintPath>..\PoyntPOSBridge.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="RestSharpSigned" Version="105.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Inspect.cs" />
+  </ItemGroup>
+</Project>

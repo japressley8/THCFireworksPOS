@@ -1,4 +1,4 @@
-# LibertyPOS Installer and Builder script
+# THC Fireworks POS Installer and Builder script
 # Run this script to set up a portable Node/NPM, install Rust, and compile the final executable.
 
 $ErrorActionPreference = "Stop"

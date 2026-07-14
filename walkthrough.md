@@ -1,6 +1,6 @@
 # Walkthrough: Portable Fireworks POS & Inventory App
 
-We have generated a production-ready, highly aesthetic local-first Point of Sale (POS) and Inventory management application named **LibertyPOS**. It is built with **Tauri v2**, **React (TypeScript)**, and **Tailwind CSS**, using an embedded **SQLite** database that guarantees **100% USB drive portability**.
+We have generated a production-ready, highly aesthetic local-first Point of Sale (POS) and Inventory management application named **THC Fireworks POS**. It is built with **Tauri v2**, **React (TypeScript)**, and **Tailwind CSS**, using an embedded **SQLite** database that guarantees **100% USB drive portability**.
 
 ---
 
@@ -141,11 +141,23 @@ Located in [src/components/__tests__/](file:///c:/Users/Jacobs-Desktop/OneDrive/
   * [ScannerListener.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/ScannerListener.test.tsx): Tests wedging scanner buffer inputs, fast typing thresholds, global browser hooks, and keyboard entry gates. Includes a new test verifying scanner is suppressed when a `.fixed.z-50` modal element is present in the DOM.
   * [RegisterView.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/RegisterView.test.tsx): Tests cart item modifications, subtotal calculations, tax adding math, preset selections, and RPC payload serialization. Includes virtual receipt DOM structure assertions.
   * [AdminView.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/AdminView.test.tsx): Tests password login flow (`fireworks1776`), creating new items/presets, editing, and expanding ledger drawer details. Includes a test for inline item editing with theme-primary styled save button, and receipt preview layout assertions.
+  * [SolitaireGame.test.tsx](file:///c:/Users/Jacobs-Desktop/OneDrive/Projects/THCFireworksPOS/src/components/__tests__/SolitaireGame.test.tsx): Tests game loading behavior under various cached states, specifically verifying correct deal handling and robustness under React 18 Strict Mode double-mount/unmount/remount conditions.
 * **How to Run**:
   Navigate to the workspace root and run:
   ```bash
   npm run test
   ```
+
+---
+
+## 🐞 Bug Fixes
+
+### 🃏 Solitaire Game Auto-Deal Fix
+* **Issue**: Solitaire game would load blank and not automatically deal when opened for the first time.
+* **Root Cause**: In React 18 (Strict Mode), components undergo a rapid Mount -> Unmount -> Remount cycle in development. Upon initial mount, `SolitaireGame` triggered the `handleRestart()` helper to shuffle and deal, scheduling asynchronous state updates. However, the component was immediately unmounted *before* these updates could flush. The unmount cleanup function captured the initial blank states from `stateRef.current` and saved this blank state (`{ stock: [], waste: [], tableau: [[], ...], ... }`) into the cache of the parent component (`App.tsx`). When the component mounted for the second time, it loaded this blank cached state instead of triggering a deal, leaving the board empty.
+* **Resolution**:
+  1. Added an `isValidState` helper to verify that a state cache actually contains cards before attempting to restore from it. If the cache is empty (i.e. does not contain cards in stock, waste, tableau, or foundation), it is ignored, and `handleRestart()` is called to deal a fresh game.
+  2. Guarded the unmount helper function so that it does not call `onSaveCache` if the board is completely empty, preventing Strict Mode double-mounts from overwriting the cache with empty values.
 
 ---
 

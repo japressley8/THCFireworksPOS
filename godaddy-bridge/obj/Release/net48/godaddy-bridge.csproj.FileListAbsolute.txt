@@ -1,0 +1,17 @@
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.csproj.AssemblyReference.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.csproj.SuggestedBindingRedirects.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.exe.config
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.AssemblyInfoInputs.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.AssemblyInfo.cs
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.csproj.CoreCompileInputs.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.sourcelink.json
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Release\net48\godaddy-bridge.exe.config
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Release\net48\godaddy-bridge.exe
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Release\net48\godaddy-bridge.pdb
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Release\net48\Newtonsoft.Json.dll
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Release\net48\RestSharp.dll
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Release\net48\PoyntPOSBridge.dll
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-.DBA34D91.Up2Date
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.exe
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Release\net48\godaddy-bridge.pdb

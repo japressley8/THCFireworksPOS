@@ -1,11 +1,13 @@
 {
   "name": "fireworks-pos-app",
   "private": true,
-  "version": "26.1.3",
+  "version": "27.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "build:sidecar": "powershell -Command \"dotnet build godaddy-bridge/godaddy-bridge.csproj -c Release; Copy-Item godaddy-bridge/bin/Release/net48/* src-tauri/binaries/ -Force\"",
+    "dev": "npm run build:sidecar && tauri dev",
+    "vite": "vite",
+    "build": "npm run build:sidecar && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run"
@@ -16,7 +18,7 @@
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "canvas-confetti": "^1.9.3",
-    "lucide-react": "^0.400.0",
+    "lucide-react": "^1.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "xlsx": "^0.18.5"

@@ -24,6 +24,22 @@ export default defineConfig({
     // don't minify for debug builds unless required
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     // produce sourcemaps for debug builds
-    sourcemap: !!process.env.TAURI_ENV_DEBUG
+    sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@tauri-apps/api')) {
+              return 'vendor-tauri';
+            }
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
 });

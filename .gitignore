@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -33,3 +33,13 @@ src-tauri/Cargo.lock
 .idea
 .gemini
 Thumbs.db
+
+# Security / Private Keys / Certificates / Env
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+.env
+.env.*
