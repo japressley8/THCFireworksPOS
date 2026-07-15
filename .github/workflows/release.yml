@@ -66,13 +66,22 @@ jobs:
           $tag     = "${{ github.ref_name }}"
           $repo    = "${{ github.repository }}"
 
-          # Locate build artifacts produced by tauri-action with createUpdaterArtifacts:true
-          $nsisZip = Get-ChildItem -Path src-tauri/target/release/bundle `
-                       -Filter "*.nsis.zip" -Recurse | Select-Object -First 1
-          $sigFile  = Get-ChildItem -Path src-tauri/target/release/bundle `
-                       -Filter "*.nsis.zip.sig" -Recurse | Select-Object -First 1
-          $nsisExe  = Get-ChildItem -Path src-tauri/target/release/bundle `
-                       -Filter "*-setup.exe" -Recurse | Select-Object -First 1
+          # --- Diagnostic: show everything in the bundle directory ---
+          Write-Host "=== Bundle directory contents ==="
+          Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
+            Select-Object FullName | Format-Table -AutoSize
+          Write-Host "================================="
+
+          # Locate build artifacts.
+          # NOTE: Get-ChildItem -Filter uses the Windows filesystem driver which only
+          # sees the LAST extension (.zip), so "*.nsis.zip" never matches. We use
+          # Where-Object against the full Name instead.
+          $nsisZip = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
+                       Where-Object { $_.Name -like "*.nsis.zip" } | Select-Object -First 1
+          $sigFile  = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
+                       Where-Object { $_.Name -like "*.nsis.zip.sig" } | Select-Object -First 1
+          $nsisExe  = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
+                       Where-Object { $_.Name -like "*_x64-setup.exe" -or $_.Name -like "*-setup.exe" } | Select-Object -First 1
 
           if ($null -eq $nsisZip -or $null -eq $sigFile) {
             Write-Error "ERROR: Could not find .nsis.zip or .nsis.zip.sig in the build output."
