@@ -33,7 +33,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and Sign Tauri App
+      # ── Pass 1: NSIS installer (used by auto-updater) ──────────────────────
+      - name: Build and Sign Tauri App (NSIS installer)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,22 +50,21 @@ jobs:
           prerelease: ${{ contains(github.ref, '-pre') || contains(github.ref, '-rc') }}
           createUpdaterArtifacts: true
 
-      # -------------------------------------------------------------------------
-      # Asset Curation
-      # Tauri v2 createUpdaterArtifacts signs the installer .exe directly,
-      # producing:  THC_Fireworks_<ver>_x64-setup.exe
-      #             THC_Fireworks_<ver>_x64-setup.exe.sig
-      #
-      # This step:
-      #   1. Renames the exe to THC_Fireworks.exe and uploads it
-      #   2. Reads the minisign signature from the .exe.sig file
-      #   3. Generates updater.json (Tauri v2 updater manifest)
-      #   4. Cleans up unwanted release assets
-      #
-      # Final release contains exactly 2 files:
-      #   THC_Fireworks.exe  - signed NSIS installer (downloaded by Tauri updater)
-      #   updater.json       - Tauri v2 updater manifest
-      # -------------------------------------------------------------------------
+      # ── Pass 2: portable exe (no installer, run from USB) ──────────────────
+      - name: Build Portable Exe
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSPHRASE: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSPHRASE }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: npm run tauri build -- --no-bundle
+
+      # ── Asset Curation ─────────────────────────────────────────────────────
+      # Produces exactly 3 release assets:
+      #   THC_Fireworks_Setup.exe    — NSIS installer  (auto-updater downloads this)
+      #   THC_Fireworks_Portable.exe — raw exe         (USB / no-install users)
+      #   updater.json               — Tauri v2 updater manifest
+      # -----------------------------------------------------------------------
       - name: Curate Release Assets
         shell: pwsh
         env:
@@ -74,16 +74,18 @@ jobs:
           $tag     = "${{ github.ref_name }}"
           $repo    = "${{ github.repository }}"
 
-          # --- Diagnostic: show everything in the bundle directory ---
+          # --- Diagnostic: show what was built ---
           Write-Host "=== Bundle directory contents ==="
           Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
             Select-Object FullName | Format-Table -AutoSize
-          Write-Host "================================="
+          Write-Host "==================================="
+          Write-Host "=== Release directory (top-level exes) ==="
+          Get-ChildItem -Path src-tauri/target/release -Filter "*.exe" |
+            Select-Object Name | Format-Table -AutoSize
+          Write-Host "==========================================="
 
-          # Tauri v2 createUpdaterArtifacts produces:
-          #   THC_Fireworks_<ver>_x64-setup.exe
-          #   THC_Fireworks_<ver>_x64-setup.exe.sig
-          # Use Where-Object (not -Filter) so multi-extension names match correctly.
+          # ── Locate NSIS installer + its signature ──
+          # Use Where-Object (not -Filter) so multi-extension names match on Windows.
           $nsisExe = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
                        Where-Object { $_.Name -like "*_x64-setup.exe" -and $_.Name -notlike "*.sig" } |
                        Select-Object -First 1
@@ -96,20 +98,37 @@ jobs:
             exit 1
           }
 
-          Write-Host "Installer : $($nsisExe.FullName)"
-          Write-Host "Sig file  : $($sigFile.FullName)"
+          # ── Locate portable exe (produced by --no-bundle build) ──
+          # --no-bundle outputs the raw binary directly to target/release/
+          $portableExe = Get-ChildItem -Path src-tauri/target/release |
+                           Where-Object { ($_.Name -eq "THC_Fireworks.exe" -or $_.Name -eq "fireworks-pos-app.exe") -and !$_.PSIsContainer } |
+                           Select-Object -First 1
+
+          Write-Host "Installer   : $($nsisExe.FullName)"
+          Write-Host "Sig file    : $($sigFile.FullName)"
+          Write-Host "Portable exe: $(if ($portableExe) { $portableExe.FullName } else { '(not found - check binary name)' })"
 
           # Read the detached minisign signature
           $signature = (Get-Content -Path $sigFile.FullName -Raw).Trim()
 
-          # Upload THC_Fireworks.exe (clean name for the Tauri updater to download)
-          Copy-Item -Path $nsisExe.FullName -Destination "THC_Fireworks.exe"
-          gh release upload $tag "THC_Fireworks.exe" --clobber
-          Write-Host "Uploaded THC_Fireworks.exe"
+          # ── Upload THC_Fireworks_Setup.exe (auto-updater target) ──
+          Copy-Item -Path $nsisExe.FullName -Destination "THC_Fireworks_Setup.exe"
+          gh release upload $tag "THC_Fireworks_Setup.exe" --clobber
+          Write-Host "Uploaded THC_Fireworks_Setup.exe"
 
-          # Generate updater.json  (Tauri v2 updater manifest schema)
+          # ── Upload THC_Fireworks_Portable.exe (USB / no-install users) ──
+          if ($portableExe) {
+            Copy-Item -Path $portableExe.FullName -Destination "THC_Fireworks_Portable.exe"
+            gh release upload $tag "THC_Fireworks_Portable.exe" --clobber
+            Write-Host "Uploaded THC_Fireworks_Portable.exe"
+          } else {
+            Write-Warning "Portable exe not found - skipping. Check Cargo.toml binary name."
+          }
+
+          # ── Generate updater.json (Tauri v2 updater manifest) ──
+          # Points to THC_Fireworks_Setup.exe so the NSIS installer runs silently.
           $pubDate   = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
-          $updateUrl = "https://github.com/$repo/releases/download/$tag/THC_Fireworks.exe"
+          $updateUrl = "https://github.com/$repo/releases/download/$tag/THC_Fireworks_Setup.exe"
 
           $manifest = [ordered]@{
             version  = $version
@@ -128,11 +147,10 @@ jobs:
           gh release upload $tag "updater.json" --clobber
           Write-Host "Uploaded updater.json"
 
-          # Remove all unwanted release assets (raw Tauri output)
+          # ── Remove raw Tauri-generated assets (keep only our curated files) ──
           $toDelete = @(
             $nsisExe.Name,
             $sigFile.Name,
-            "THC_Fireworks_Portable.exe",
             "THC_Fireworks_Portable.zip",
             "godaddy-bridge.zip"
           )
@@ -142,5 +160,8 @@ jobs:
             gh release delete-asset $tag $asset --yes 2>$null
           }
 
-          Write-Host "Release curation complete. Final assets: THC_Fireworks.exe, updater.json"
-
+          Write-Host ""
+          Write-Host "Release curation complete."
+          Write-Host "  THC_Fireworks_Setup.exe    -- NSIS installer (auto-updater)"
+          Write-Host "  THC_Fireworks_Portable.exe -- portable exe   (USB / no-install)"
+          Write-Host "  updater.json               -- updater manifest"
