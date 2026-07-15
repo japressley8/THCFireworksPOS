@@ -4988,7 +4988,7 @@ async fn godaddy_initiate_payment(
     token: String,
     amount_cents: i64,
     sale_id: String
-) -> Result<String, String> {
+) -> Result<Value, String> {
     log_app_event("info", &format!("[GoDaddy] Initiating payment of {} cents for Sale ID: {}", amount_cents, sale_id));
     if is_godaddy_mock_enabled() {
         use tauri::Emitter;
@@ -5011,7 +5011,8 @@ async fn godaddy_initiate_payment(
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         let mock_tx = format!("MOCK_TX_{}", rand_number());
         log_app_event("info", &format!("[GoDaddy] Mock payment succeeded: {}", mock_tx));
-        return Ok(mock_tx);
+        // Mock always simulates a card payment
+        return Ok(json!({ "txId": mock_tx, "paymentMethod": "GoDaddy Terminal Flex" }));
     }
 
     match call_sidecar(&app_handle, "sale", json!({
@@ -5030,8 +5031,23 @@ async fn godaddy_initiate_payment(
             }
 
             let tx_id = res["transactionId"].as_str().unwrap_or("SUCCESS_TX").to_string();
-            log_app_event("info", &format!("[GoDaddy] Payment succeeded. Transaction ID: {}", tx_id));
-            Ok(tx_id)
+
+            // Determine actual payment method from the terminal's funding source type.
+            // The GoDaddy/Poynt terminal supports cash tender in addition to cards —
+            // if the customer paid with cash at the terminal kiosk, map it to "Cash"
+            // so the ledger accurately reflects the tender type used.
+            let funding_source_type = res["fundingSourceType"].as_str().unwrap_or("").to_uppercase();
+            let payment_method = if funding_source_type == "CASH" {
+                "Cash".to_string()
+            } else {
+                "GoDaddy Terminal Flex".to_string()
+            };
+
+            log_app_event("info", &format!(
+                "[GoDaddy] Payment succeeded. Transaction ID: {}, Funding Source: {}, Payment Method: {}",
+                tx_id, funding_source_type, payment_method
+            ));
+            Ok(json!({ "txId": tx_id, "paymentMethod": payment_method }))
         }
         Err(e) => {
             log_app_event("error", &format!("[GoDaddy] Payment failed with error: {}", e));

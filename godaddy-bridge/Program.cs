@@ -205,16 +205,21 @@ namespace godaddy_bridge
                 
                 string txId = null;
                 string approvalCode = null;
+                string fundingSourceType = null;
                 if (res.Payment.Transactions != null && res.Payment.Transactions.Count > 0)
                 {
-                    txId = res.Payment.Transactions[0].Id;
-                    approvalCode = res.Payment.Transactions[0].ApprovalCode;
+                    var tx = res.Payment.Transactions[0];
+                    txId = tx.Id;
+                    approvalCode = tx.ApprovalCode;
+                    // FundingSource.Type indicates how the customer paid (e.g. "CASH", "CREDIT_DEBIT", "DEBIT", "CHECK")
+                    fundingSourceType = tx.FundingSource?.Type;
                 }
                 
                 data["transactionId"] = txId;
                 data["status"] = res.Payment.Status;
                 data["amount"] = res.Payment.Amount;
                 data["approvalCode"] = approvalCode;
+                data["fundingSourceType"] = fundingSourceType;
             }
             else
             {

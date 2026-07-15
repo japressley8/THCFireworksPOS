@@ -1,6 +1,6 @@
 [package]
 name = "fireworks-pos-app"
-version = "27.1.7"
+version = "27.1.8"
 description = "THC Fireworks - Portable Point of Sale"
 authors = ["Thousand Hills Church Volunteers"]
 edition = "2021"

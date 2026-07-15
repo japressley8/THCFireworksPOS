@@ -1009,15 +1009,20 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
 
     try {
       setPaymentStatusMessage('Waiting for customer payment on terminal...');
-      const txId = await invoke<string>('godaddy_initiate_payment', {
+      const result = await invoke<{ txId: string; paymentMethod: string }>('godaddy_initiate_payment', {
         ip: godaddyTerminalIp,
         token: godaddyPairingToken,
         amountCents,
         saleId: mockSaleId
       });
 
+      // Use the payment method reported by the terminal (e.g. "Cash" if the customer
+      // tendered cash at the kiosk, otherwise "GoDaddy Terminal Flex" for card payments).
+      const resolvedPaymentMethod = result.paymentMethod || 'GoDaddy Terminal Flex';
+      const txId = result.txId;
+
       setPaymentStatusMessage('Payment approved! Saving sale...');
-      await triggerSaleCompletion('GoDaddy Terminal Flex', txId);
+      await triggerSaleCompletion(resolvedPaymentMethod, txId);
       setShowPaymentModal(false);
     } catch (err) {
       setPaymentError(String(err));

@@ -2,6 +2,17 @@
 
 All notable changes to the THC Fireworks POS system will be documented in this file.
 
+## [27.1.8] - 2026-07-15
+
+### Changed
+- **GoDaddy Terminal — Smart Payment Method Detection**:
+  - When a GoDaddy Terminal Flex payment is processed, the POS now reads the actual tender type reported by the terminal after the transaction completes.
+  - If the customer paid with **cash** at the terminal kiosk, the ledger entry is recorded with the payment method **"Cash"** instead of "GoDaddy Terminal Flex".
+  - For all card-based payments (credit, debit, EMV, NFC, etc.), the payment method continues to be recorded as "GoDaddy Terminal Flex".
+  - The GoDaddy transaction ID is always linked regardless of the tender type used.
+  - Updated the `HandleSale` bridge response to include `fundingSourceType` from `Transaction.FundingSource.Type`.
+  - Updated `godaddy_initiate_payment` Rust command to return a structured object `{ txId, paymentMethod }` instead of a plain transaction ID string.
+
 ## [27.1.1] - 2026-07-14
 
 ### Added
