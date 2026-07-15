@@ -57,7 +57,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Item, Discount, Sale, Theme, YearSummary, DaySummary, Tax, SaleItemDetail, PaymentMethod } from '../types';
-import packageJson from '../../package.json';
+import { getVersion } from '@tauri-apps/api/app';
 import { getTheme } from './shared/colorUtils';
 import { defaultConfirm, defaultAlert } from './shared/dialogUtils';
 
@@ -132,6 +132,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleAlert = async (message: string, title?: string): Promise<void> => {
     await (customAlert || defaultAlert)(message, title);
   };
+
+  // Runtime app version (read from Tauri binary metadata, which is sourced from Cargo.toml)
+  const [appVersion, setAppVersion] = useState<string>('...');
 
   // Active sub-tab
   const [localSubTab, setLocalSubTab] = useState<'inventory' | 'discounts' | 'taxes' | 'sales' | 'analytics' | 'data' | 'settings' | 'devices' | 'payment_methods'>('inventory');
@@ -529,6 +532,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
       }
     }
   };
+
+  // Load runtime app version from Tauri binary metadata (always matches Cargo.toml)
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion('unknown'));
+  }, []);
 
   // Load printer configuration on mount
   useEffect(() => {
@@ -7185,7 +7193,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <span className="block text-xs font-bold uppercase tracking-wider text-custom-text">Current Version</span>
-                    <span className="text-[10px] text-custom-muted mt-0.5 block">{packageJson.version}</span>
+                    <span className="text-[10px] text-custom-muted mt-0.5 block">{appVersion}</span>
                     <span className="text-[10px] text-custom-muted mt-1 block">
                       Updates are applied automatically with one click — no manual download needed.
                     </span>

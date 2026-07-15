@@ -2,6 +2,20 @@
 
 All notable changes to the THC Fireworks POS system will be documented in this file.
 
+## [27.1.9] - 2026-07-15
+
+### Changed
+- **In-App Version Display — Always Accurate**:
+  - The version number shown in Settings → App Updates now reads directly from the Tauri binary's embedded metadata (sourced from `Cargo.toml`) via the `getVersion()` API at runtime.
+  - Previously, it read from `package.json`, which could fall out of sync with `Cargo.toml` and `tauri.conf.json`.
+  - No manual sync step required going forward — the displayed version is always the true built version.
+- **README Install Instructions**:
+  - Rewrote the "How to Install & Run" section to explain both the **Installer** and **Portable** options side-by-side.
+  - Added a comparison table (best for, auto-updates, portability, admin required) and separate step-by-step guides for each, written for non-technical volunteers.
+- **GitHub Release Notes**:
+  - Release notes now include a full installation guide with a comparison table and step-by-step instructions for both the Installer and Portable options — generated automatically for every tagged release.
+  - Replaces the previous placeholder text `'See the full changelog below.'`
+
 ## [27.1.8] - 2026-07-15
 
 ### Changed

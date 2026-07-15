@@ -34,17 +34,41 @@ THC Fireworks POS (Thousand Hills Church POS) is a premium, local-first Point of
 
 ## 🚀 How to Install & Run (User Walkthrough)
 
-### 1. Download the App
-* Go to the [Releases](https://github.com/japressley8/THCFireworksPOS/releases) page of the repository.
-* Download the portable executable (`THC_Fireworks_Portable.exe`).
+### Which version should I download?
 
-### 2. Run Portably from a USB Drive
-1. Insert your USB flash drive into your computer.
-2. Copy the downloaded `THC_Fireworks_Portable.exe` file directly onto the USB drive.
-3. Double-click the executable to launch the app!
-   * *A database file named `firework_pos.db` will automatically be created in the same folder on your USB drive to save your catalog, presets, and sales history.*
+Every release includes two files. Here's how to choose:
+
+| | 🖥️ **Installer** (`THC_Fireworks_Setup.exe`) | 💾 **Portable** (`THC_Fireworks_Portable.exe`) |
+|---|---|---|
+| **Best for** | A dedicated Windows PC used every year | A USB drive shared between multiple computers |
+| **How it works** | Installs the app into Program Files on one machine | Runs directly from any location — no installation needed |
+| **Auto-updates** | ✅ One-click in-app update button | ❌ Download the new portable file manually each season |
+| **Data storage** | Database is saved next to the `.exe` wherever it lives | Database is saved next to the `.exe` on your USB drive |
+| **Requires admin?** | Yes, to install | No |
+| **Portable?** | ❌ Tied to that computer | ✅ Plug your USB into any Windows PC and go |
+
+> [!TIP]
+> **Not sure? Pick Portable.** It works on any Windows computer, keeps your data on the USB drive so it moves with you, and avoids any installation steps. Just download, copy to your USB, and double-click.
 
 ---
+
+### Option A — Installer (for a dedicated machine)
+
+1. Go to the [Releases](https://github.com/japressley8/THCFireworksPOS/releases) page.
+2. Under **Assets**, click **`THC_Fireworks_Setup.exe`** to download it.
+3. Double-click the downloaded file and follow the installation wizard.
+4. Launch **THC Fireworks POS** from your Start Menu or Desktop shortcut.
+5. The app will automatically check for updates each time it launches and can update itself in one click.
+
+### Option B — Portable (for USB or shared computers)
+
+1. Go to the [Releases](https://github.com/japressley8/THCFireworksPOS/releases) page.
+2. Under **Assets**, click **`THC_Fireworks_Portable.exe`** to download it.
+3. Copy `THC_Fireworks_Portable.exe` to your USB flash drive (or any folder you prefer).
+4. Double-click the `.exe` to launch — no installation required.
+   - *A database file named `firework_pos.db` is automatically created in the same folder as the `.exe`. This file holds your entire catalog, settings, and sales history. Keep the `.exe` and `.db` file together.*
+5. To update to a newer version, simply download the new `THC_Fireworks_Portable.exe` and replace the old one. **Your `firework_pos.db` data file will not be affected.**
+
 
 ## 💻 How to Use the POS Terminal
 

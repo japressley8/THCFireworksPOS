@@ -45,7 +45,39 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'THC Fireworks v__VERSION__'
-          releaseBody: 'See the full changelog below.'
+          releaseBody: |
+            ## 📥 Installation
+
+            Two download options are available under **Assets** below:
+
+            | | 🖥️ Installer (`THC_Fireworks_Setup.exe`) | 💾 Portable (`THC_Fireworks_Portable.exe`) |
+            |---|---|---|
+            | **Best for** | A dedicated Windows PC used every year | A USB drive shared between multiple computers |
+            | **How it works** | Installs into Program Files on one machine | Runs from any location — no installation needed |
+            | **Auto-updates** | ✅ One-click in-app update button | ❌ Download the new portable file manually each season |
+            | **Requires admin?** | Yes, to install | No |
+            | **Portable?** | ❌ Tied to that computer | ✅ Plug into any Windows PC and go |
+
+            > **Not sure? Pick Portable.** It works on any Windows computer, keeps your data on the USB so it moves with you, and requires no installation. Just download, copy to your USB, and double-click.
+
+            ---
+
+            ### Option A — Installer
+            1. Click **`THC_Fireworks_Setup.exe`** under Assets.
+            2. Run the installer and follow the wizard.
+            3. Launch **THC Fireworks POS** from your Start Menu or Desktop shortcut.
+            4. Future updates can be applied with one click inside the app.
+
+            ### Option B — Portable (USB)
+            1. Click **`THC_Fireworks_Portable.exe`** under Assets.
+            2. Copy it to your USB flash drive (or any folder).
+            3. Double-click to launch — no installation needed.
+               - A `firework_pos.db` database file is created next to the `.exe` automatically.
+               - Keep the `.exe` and `.db` together. Your data is safe when you replace the `.exe` with a newer version.
+
+            ---
+
+            📋 **Full changelog:** https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md
           releaseDraft: false
           prerelease: ${{ contains(github.ref, '-pre') || contains(github.ref, '-rc') }}
           createUpdaterArtifacts: true

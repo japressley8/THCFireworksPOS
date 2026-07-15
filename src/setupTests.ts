@@ -32,6 +32,12 @@ vi.mock('@tauri-apps/api/event', () => {
   };
 });
 
+vi.mock('@tauri-apps/api/app', () => {
+  return {
+    getVersion: vi.fn(() => Promise.resolve('0.0.0-test'))
+  };
+});
+
 // Mock canvas-confetti because it is visual and accesses canvas graphics contexts
 vi.mock('canvas-confetti', () => {
   return {
