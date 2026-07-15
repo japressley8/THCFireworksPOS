@@ -231,6 +231,7 @@ describe('AdminView Component', () => {
   });
 
   it('shows the app updates panel with the current version', async () => {
+    const packageJson = await import('../../../package.json');
     render(<AdminView {...defaultProps} />);
 
     fireEvent.click(screen.getByText('Settings'));
@@ -239,7 +240,8 @@ describe('AdminView Component', () => {
       expect(screen.getByText('App Updates')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/27\.1\.0/)).toBeInTheDocument();
+    const escapedVersion = packageJson.default.version.replace(/\./g, '\\.');
+    expect(screen.getByText(new RegExp(escapedVersion))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /check for updates/i })).toBeInTheDocument();
   });
 

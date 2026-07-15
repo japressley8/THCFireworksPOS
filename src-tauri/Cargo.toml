@@ -1,6 +1,6 @@
 [package]
 name = "fireworks-pos-app"
-version = "1.0.0"
+version = "27.1.2"
 description = "THC Fireworks - Portable Point of Sale"
 authors = ["Thousand Hills Church Volunteers"]
 edition = "2021"
@@ -25,6 +25,7 @@ base64 = "0.22"
 ureq = { version = "2.12", features = ["json", "tls"] } # Ensure tls features are on
 rustls = { version = "0.23", features = ["ring"] }
 jsonwebtoken = "9.3" # For RS256 token generation
+tokio = { version = "1", features = ["time"] }
 [profile.release]
 opt-level = 3
 lto = true

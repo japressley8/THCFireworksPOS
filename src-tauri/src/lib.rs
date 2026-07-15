@@ -591,7 +591,7 @@ fn migrate_v3_to_v4(conn: &mut Connection) -> Result<(), String> {
     ).ok();
     conn.execute(
         "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status)
-         VALUES ('GoDaddy Terminal Flex', 0, 0.0, 0.0, 0, 'active')",
+         VALUES ('GoDaddy Terminal Flex', 0, 2.5, 0.0, 0, 'active')",
         [],
     ).ok();
 
@@ -857,6 +857,21 @@ fn init_db() -> Result<(), String> {
         [],
     )
     .map_err(|e| format!("Schema error (settings): {}", e))?;
+
+    // Seed default Google OAuth credentials if not already present
+    conn.execute(
+        "INSERT OR IGNORE INTO settings (key, value) VALUES ('google_client_id', ?1)",
+        params![GOOGLE_CLIENT_ID],
+    )
+    .map_err(|e| format!("Failed to seed default google_client_id: {}", e))?;
+
+    if let Some(secret) = GOOGLE_CLIENT_SECRET_DEFAULT {
+        conn.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES ('google_client_secret', ?1)",
+            params![secret],
+        )
+        .map_err(|e| format!("Failed to seed default google_client_secret: {}", e))?;
+    }
 
     // Ensure backup_metadata table exists.
     conn.execute(

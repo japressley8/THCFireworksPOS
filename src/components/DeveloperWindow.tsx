@@ -24,7 +24,7 @@ export const DeveloperWindow: React.FC = () => {
   const [terminalActionStatus, setTerminalActionStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
 
   // Google OAuth Credentials States
-  const [googleClientId, setGoogleClientId] = useState<string>('515783768484-s1si27t2p0j03eau66k0u0hcqnf32gro.apps.googleusercontent.com');
+  const [googleClientId, setGoogleClientId] = useState<string>('');
   const [googleClientSecret, setGoogleClientSecret] = useState<string>('');
 
   // Scanner Simulator States
