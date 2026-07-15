@@ -1,4 +1,4 @@
-﻿name: Release
+name: Release
 
 on:
   push:
@@ -47,6 +47,7 @@ jobs:
           releaseBody: 'See the full changelog below.'
           releaseDraft: false
           prerelease: ${{ contains(github.ref, '-pre') || contains(github.ref, '-rc') }}
+          createUpdaterArtifacts: true
 
       # -------------------------------------------------------------------------
       # Asset Curation
