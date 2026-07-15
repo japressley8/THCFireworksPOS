@@ -165,3 +165,5 @@ jobs:
           Write-Host "  THC_Fireworks_Setup.exe    -- NSIS installer (auto-updater)"
           Write-Host "  THC_Fireworks_Portable.exe -- portable exe   (USB / no-install)"
           Write-Host "  updater.json               -- updater manifest"
+          exit 0
+

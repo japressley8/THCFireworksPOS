@@ -1,6 +1,6 @@
 {
   "productName": "THC_Fireworks",
-  "version": "27.1.6",
+  "version": "27.1.7",
   "identifier": "com.church.thcfireworks",
   "build": {
     "beforeDevCommand": "npm run vite",
