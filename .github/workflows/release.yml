@@ -51,11 +51,19 @@ jobs:
 
       # -------------------------------------------------------------------------
       # Asset Curation
-      # Renames the Tauri-generated signed NSIS update payload to THC_Fireworks.zip,
-      # generates updater.json, and removes all unwanted release assets.
-      # Final release will contain exactly 2 files:
-      #   THC_Fireworks.zip  - signed NSIS update payload (downloaded by Tauri updater)
-      #   updater.json       - Tauri updater manifest (endpoint in tauri.conf.json)
+      # Tauri v2 createUpdaterArtifacts signs the installer .exe directly,
+      # producing:  THC_Fireworks_<ver>_x64-setup.exe
+      #             THC_Fireworks_<ver>_x64-setup.exe.sig
+      #
+      # This step:
+      #   1. Renames the exe to THC_Fireworks.exe and uploads it
+      #   2. Reads the minisign signature from the .exe.sig file
+      #   3. Generates updater.json (Tauri v2 updater manifest)
+      #   4. Cleans up unwanted release assets
+      #
+      # Final release contains exactly 2 files:
+      #   THC_Fireworks.exe  - signed NSIS installer (downloaded by Tauri updater)
+      #   updater.json       - Tauri v2 updater manifest
       # -------------------------------------------------------------------------
       - name: Curate Release Assets
         shell: pwsh
@@ -72,37 +80,36 @@ jobs:
             Select-Object FullName | Format-Table -AutoSize
           Write-Host "================================="
 
-          # Locate build artifacts.
-          # NOTE: Get-ChildItem -Filter uses the Windows filesystem driver which only
-          # sees the LAST extension (.zip), so "*.nsis.zip" never matches. We use
-          # Where-Object against the full Name instead.
-          $nsisZip = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
-                       Where-Object { $_.Name -like "*.nsis.zip" } | Select-Object -First 1
-          $sigFile  = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
-                       Where-Object { $_.Name -like "*.nsis.zip.sig" } | Select-Object -First 1
-          $nsisExe  = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
-                       Where-Object { $_.Name -like "*_x64-setup.exe" -or $_.Name -like "*-setup.exe" } | Select-Object -First 1
+          # Tauri v2 createUpdaterArtifacts produces:
+          #   THC_Fireworks_<ver>_x64-setup.exe
+          #   THC_Fireworks_<ver>_x64-setup.exe.sig
+          # Use Where-Object (not -Filter) so multi-extension names match correctly.
+          $nsisExe = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
+                       Where-Object { $_.Name -like "*_x64-setup.exe" -and $_.Name -notlike "*.sig" } |
+                       Select-Object -First 1
+          $sigFile = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse |
+                       Where-Object { $_.Name -like "*_x64-setup.exe.sig" } |
+                       Select-Object -First 1
 
-          if ($null -eq $nsisZip -or $null -eq $sigFile) {
-            Write-Error "ERROR: Could not find .nsis.zip or .nsis.zip.sig in the build output."
+          if ($null -eq $nsisExe -or $null -eq $sigFile) {
+            Write-Error "ERROR: Could not find _x64-setup.exe or _x64-setup.exe.sig in the build output."
             exit 1
           }
 
-          Write-Host "NSIS zip : $($nsisZip.FullName)"
-          Write-Host "Sig file : $($sigFile.FullName)"
+          Write-Host "Installer : $($nsisExe.FullName)"
+          Write-Host "Sig file  : $($sigFile.FullName)"
 
           # Read the detached minisign signature
           $signature = (Get-Content -Path $sigFile.FullName -Raw).Trim()
 
-          # Upload THC_Fireworks.zip (renamed, signed NSIS update payload)
-          Copy-Item -Path $nsisZip.FullName -Destination "THC_Fireworks.zip"
-          gh release upload $tag "THC_Fireworks.zip" --clobber
-          Write-Host "Uploaded THC_Fireworks.zip"
+          # Upload THC_Fireworks.exe (clean name for the Tauri updater to download)
+          Copy-Item -Path $nsisExe.FullName -Destination "THC_Fireworks.exe"
+          gh release upload $tag "THC_Fireworks.exe" --clobber
+          Write-Host "Uploaded THC_Fireworks.exe"
 
-          # Generate updater.json
-          # Forward-compatible schema: add platform keys when macOS/Linux targets are added
+          # Generate updater.json  (Tauri v2 updater manifest schema)
           $pubDate   = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
-          $updateUrl = "https://github.com/$repo/releases/download/$tag/THC_Fireworks.zip"
+          $updateUrl = "https://github.com/$repo/releases/download/$tag/THC_Fireworks.exe"
 
           $manifest = [ordered]@{
             version  = $version
@@ -116,26 +123,24 @@ jobs:
             }
           }
 
-          $manifest | ConvertTo-Json -Depth 5 | `
+          $manifest | ConvertTo-Json -Depth 5 |
             Out-File -FilePath "updater.json" -Encoding utf8NoBOM
           gh release upload $tag "updater.json" --clobber
           Write-Host "Uploaded updater.json"
 
-          # Delete all unwanted release assets
-          $toDelete = @()
-          if ($nsisExe) {
-            $toDelete += $nsisExe.Name
-            $toDelete += "$($nsisExe.Name).sig"
-          }
-          $toDelete += $nsisZip.Name
-          $toDelete += $sigFile.Name
-          $toDelete += "THC_Fireworks_Portable.exe"
-          $toDelete += "THC_Fireworks_Portable.zip"
-          $toDelete += "godaddy-bridge.zip"
+          # Remove all unwanted release assets (raw Tauri output)
+          $toDelete = @(
+            $nsisExe.Name,
+            $sigFile.Name,
+            "THC_Fireworks_Portable.exe",
+            "THC_Fireworks_Portable.zip",
+            "godaddy-bridge.zip"
+          )
 
           foreach ($asset in $toDelete) {
             Write-Host "Removing asset (if present): $asset"
             gh release delete-asset $tag $asset --yes 2>$null
           }
 
-          Write-Host "Release curation complete. Final assets: THC_Fireworks.zip, updater.json"
+          Write-Host "Release curation complete. Final assets: THC_Fireworks.exe, updater.json"
+

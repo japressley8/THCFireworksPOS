@@ -1,7 +1,7 @@
 {
   "name": "fireworks-pos-app",
   "private": true,
-  "version": "27.1.4",
+  "version": "27.1.5",
   "type": "module",
   "scripts": {
     "build:sidecar": "powershell -Command \"dotnet build godaddy-bridge/godaddy-bridge.csproj -c Release; Copy-Item godaddy-bridge/bin/Release/net48/* src-tauri/binaries/ -Force\"",
