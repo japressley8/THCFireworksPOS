@@ -42,7 +42,7 @@ describe('HexCommandGame Component', () => {
     expect(screen.getAllByText(/Players/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Continents/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Continent Size/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('⚔️ Start Game')).toBeInTheDocument();
+    expect(screen.getByText('Start Game')).toBeInTheDocument();
   });
 
   it('calculates reinforcements correctly including continent ownership bonus', () => {
@@ -89,7 +89,7 @@ describe('HexCommandGame Component', () => {
       fireEvent.click(endTurnBtn);
     });
 
-    expect(screen.getAllByText('⊕ REINFORCE')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('REINFORCE')[0]).toBeInTheDocument();
     expect(screen.getByText((content, element) => {
       return element?.tagName.toLowerCase() === 'strong' && content === '4';
     })).toBeInTheDocument();
@@ -138,7 +138,7 @@ describe('HexCommandGame Component', () => {
 
     render(<HexCommandGame {...defaultProps} cachedState={cachedState} />);
 
-    expect(screen.getByText('⚔ ATTACK')).toBeInTheDocument();
+    expect(screen.getByText('ATTACK')).toBeInTheDocument();
 
     // Trigger attacks directly via our exposed test hook
     act(() => {
@@ -152,7 +152,7 @@ describe('HexCommandGame Component', () => {
       vi.advanceTimersByTime(4700);
     });
 
-    expect(screen.getByText('⚔️ Occupy Territory')).toBeInTheDocument();
+    expect(screen.getByText('Occupy Territory')).toBeInTheDocument();
     expect(screen.getByText('Move 3')).toBeInTheDocument();
     expect(screen.getByText('of 4')).toBeInTheDocument();
 
@@ -163,7 +163,7 @@ describe('HexCommandGame Component', () => {
       fireEvent.click(confirmBtn);
     });
 
-    expect(screen.queryByText('⚔️ Occupy Territory')).toBeNull();
+    expect(screen.queryByText('Occupy Territory')).toBeNull();
   });
 
   it('renders progress bar, reset button, and active player glow, and reset button returns to lobby', () => {
@@ -228,7 +228,7 @@ describe('HexCommandGame Component', () => {
     });
 
     // Check we are back in Lobby (Start Game is visible, Reset button is gone)
-    expect(screen.getByText('⚔️ Start Game')).toBeInTheDocument();
+    expect(screen.getByText('Start Game')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reset/i })).toBeNull();
   });
 
@@ -323,5 +323,143 @@ describe('HexCommandGame Component', () => {
     expect(maxCount - minCount).toBeLessThanOrEqual(1);
     expect(maxCount).toBe(10);
     expect(minCount).toBe(9);
+  });
+
+  it('declares the winner and transitions phase to GAMEOVER when a player conquers the last remaining opponent cell', () => {
+    const cachedState = {
+      phase: 'ATTACK',
+      lobbyConfig: {
+        playerCount: 2,
+        continentCount: 1,
+        continentSize: 3,
+        setupMode: 'auto',
+        autoMode: 'clumped',
+      },
+      players: [
+        { id: 1, suit: 'spades', color: '#ff0000' },
+        { id: 2, suit: 'hearts', color: '#0000ff' },
+      ],
+      currentPlayerIdx: 0, // Player 1
+      cells: {
+        '0,0': { id: '0,0', q: 0, r: 0, s: 0, continentId: null, owner: 1, troops: 5, isCapital: true },
+        '1,0': { id: '1,0', q: 1, r: 0, s: -1, continentId: 0, owner: 1, troops: 5, isCapital: false },
+        '1,-1': { id: '1,-1', q: 1, r: -1, s: 0, continentId: 0, owner: 2, troops: 1, isCapital: false },
+      },
+      continents: [
+        { id: 0, hexIds: ['1,0', '1,-1'], fillColor: 'rgba(0,0,0,0.1)', borderColor: '#000' },
+      ],
+      totalHexes: 3,
+      turn: 2,
+      reinforcementsLeft: 0,
+      winner: null,
+      eliminatedPlayers: [],
+      draftOrder: [],
+      draftStep: 0,
+    };
+
+    let randomCalls = 0;
+    const mockMath = Object.create(globalThis.Math);
+    mockMath.random = () => {
+      randomCalls++;
+      return randomCalls <= 3 ? 0.99 : 0.01; // Attacker rolls high, defender rolls low
+    };
+    globalThis.Math = mockMath;
+
+    render(<HexCommandGame {...defaultProps} cachedState={cachedState} />);
+
+    // Select attacker and then target cell to launch combat
+    act(() => {
+      (window as any).TEST_HOOKS.handleHexClick('1,0');
+    });
+    act(() => {
+      (window as any).TEST_HOOKS.handleHexClick('1,-1');
+    });
+
+    // Advance combat timers (combat dice and transition takes ~4700ms total)
+    act(() => {
+      vi.advanceTimersByTime(4700);
+    });
+
+    // The occupation dialog should be visible since defender was reduced to 0
+    expect(screen.getByText('Occupy Territory')).toBeInTheDocument();
+
+    const confirmBtn = screen.getByText('✓');
+    act(() => {
+      fireEvent.click(confirmBtn);
+    });
+
+    // Verify game is over and Player 1 is the winner
+    expect(screen.getByText('Player 1 Wins!')).toBeInTheDocument();
+  });
+
+  it('declares the winner by majority when a player controls the required number of hexes', () => {
+    const cachedState = {
+      phase: 'ATTACK',
+      lobbyConfig: {
+        playerCount: 4,
+        continentCount: 1,
+        continentSize: 5,
+        setupMode: 'auto',
+        autoMode: 'clumped',
+      },
+      players: [
+        { id: 1, suit: 'spades', color: '#ff0000' },
+        { id: 2, suit: 'hearts', color: '#0000ff' },
+        { id: 3, suit: 'diamonds', color: '#00ff00' },
+        { id: 4, suit: 'clubs', color: '#ffff00' },
+      ],
+      currentPlayerIdx: 0, // Player 1
+      cells: {
+        '0,0': { id: '0,0', q: 0, r: 0, s: 0, continentId: null, owner: 1, troops: 5, isCapital: true },
+        '1,0': { id: '1,0', q: 1, r: 0, s: -1, continentId: 0, owner: 1, troops: 5, isCapital: false },
+        '2,0': { id: '2,0', q: 2, r: 0, s: -2, continentId: 0, owner: 1, troops: 5, isCapital: false },
+        '1,-1': { id: '1,-1', q: 1, r: -1, s: 0, continentId: 0, owner: 2, troops: 1, isCapital: false },
+        '2,-1': { id: '2,-1', q: 2, r: -1, s: -1, continentId: 0, owner: 3, troops: 1, isCapital: false },
+      },
+      continents: [
+        { id: 0, hexIds: ['1,0', '2,0', '1,-1', '2,-1'], fillColor: 'rgba(0,0,0,0.1)', borderColor: '#000' },
+      ],
+      totalHexes: 5, // req for 4 players is Math.ceil(5 * 0.8) = 4
+      turn: 2,
+      reinforcementsLeft: 0,
+      winner: null,
+      eliminatedPlayers: [],
+      draftOrder: [],
+      draftStep: 0,
+    };
+
+    const mockMath = Object.create(globalThis.Math);
+    let randomCalls = 0;
+    mockMath.random = () => {
+      randomCalls++;
+      return randomCalls <= 3 ? 0.99 : 0.01; // Attacker rolls high, defender rolls low
+    };
+    globalThis.Math = mockMath;
+
+    render(<HexCommandGame {...defaultProps} cachedState={cachedState} />);
+
+    // Select attacker ('1,0' owned by 1) and target ('1,-1' owned by 2)
+    act(() => {
+      (window as any).TEST_HOOKS.handleHexClick('1,0');
+    });
+    act(() => {
+      (window as any).TEST_HOOKS.handleHexClick('1,-1');
+    });
+
+    // Advance combat timers
+    act(() => {
+      vi.advanceTimersByTime(4700);
+    });
+
+    expect(screen.getByText('Occupy Territory')).toBeInTheDocument();
+
+    const confirmBtn = screen.getByText('✓');
+    act(() => {
+      fireEvent.click(confirmBtn);
+    });
+
+    // Verify game is over and Player 1 is the winner by majority
+    expect(screen.getByText('Player 1 Wins by Majority!')).toBeInTheDocument();
+    expect(screen.getByText(/Won by majority control in 2 turns/i)).toBeInTheDocument();
   });
 });

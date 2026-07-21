@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("godaddy-bridge")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cb6c5a7cb157bfafde06fedd4d11f3032c8ccdcd")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6dfc4c3ec65c274fbf61a70a38dff19ca2c22f3d")]
 [assembly: System.Reflection.AssemblyProductAttribute("godaddy-bridge")]
 [assembly: System.Reflection.AssemblyTitleAttribute("godaddy-bridge")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

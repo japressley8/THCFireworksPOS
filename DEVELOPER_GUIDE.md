@@ -131,7 +131,18 @@ Pairs card transaction terminals directly over local Wi-Fi.
 - **Sidecar Bridge Process**: Rust backend launches `PoyntPOSBridge.dll` locally using standard IO pipelines.
 - **Transaction Gating**: The frontend initiates checkouts, and the Rust backend communicates the ticket price to the bridged terminal, awaiting payment authorization or failure responses before logging the sale.
 
-### 4. Custom Discount & Pricing Rules Engine
+### 4. Parked Carts & Multi-Customer Handling
+Enables temporary order state persistence on the Sales Register.
+- **State Management**: Active checkout state (items, quantities, applied discounts, customer notes) is serialized and stored in component state/local storage.
+- **Restoration & Gating**: Operators can park the active cart, assist a new customer, and restore parked orders without invalidating discount calculations or inventory levels.
+
+### 5. Split Payment Execution Engine
+Supports multi-tender settlement on checkout.
+- **Tender Allocation**: Calculates real-time remaining balance as payments are added across Cash, Card, GoDaddy Terminal Flex, or custom payment methods.
+- **Bridge Interaction**: Integrates with GoDaddy Smart Terminal bridge for partial card payments while tracking cash/manual tenders locally.
+- **Ledger Records**: Persists payment method breakdowns directly into `sales.payment_method` ledger JSON strings and formats itemized breakdowns on printed receipts.
+
+### 6. Custom Discount & Pricing Rules Engine
 Handles layered pricing calculations:
 - Resolves whether items should charge standard or bulk case pricing (based on scan inputs or manual toggle states).
 - Resolves tax groupings dynamically (total-scope vs item-scope taxation rules).

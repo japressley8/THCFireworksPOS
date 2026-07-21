@@ -504,4 +504,143 @@ describe('RegisterView Component', () => {
 
     confirmSpy.mockRestore();
   });
+
+  it('prevents adding invalid items with temporary or incomplete barcodes', async () => {
+    const invalidItem = { id: 99, barcode: 'INVALID-TEMP-123', name: 'Broken Item', price: 5.00, is_invalid: true, missing_fields: 'price' };
+    mockInvoke.mockImplementation((cmd: string, _args?: any) => {
+      if (cmd === 'get_items') return Promise.resolve([invalidItem]);
+      if (cmd === 'get_discounts') return Promise.resolve([]);
+      if (cmd === 'get_taxes') return Promise.resolve([]);
+      if (cmd === 'get_payment_methods') return Promise.resolve([]);
+      if (cmd === 'get_setting') return Promise.resolve(null);
+      if (cmd === 'get_item_by_barcode') return Promise.resolve(invalidItem);
+      return Promise.resolve(null);
+    });
+
+    render(<RegisterView scannedBarcode="INVALID-TEMP-123" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot add invalid item "Broken Item"/i)).toBeInTheDocument();
+    });
+  });
+
+  it('handles bulk case barcode addition and bulk unit pricing', async () => {
+    const bulkItem = {
+      id: 50,
+      barcode: 'UNIT-1',
+      bulk_barcode: 'BULK-CASE-1',
+      name: 'Smoke Bomb Case',
+      price: 5.00,
+      bulk_price: 40.00,
+      bulk_quantity: 10,
+      stock_quantity: 100
+    };
+
+    mockInvoke.mockImplementation((cmd: string, _args?: any) => {
+      if (cmd === 'get_items') return Promise.resolve([bulkItem]);
+      if (cmd === 'get_discounts') return Promise.resolve([]);
+      if (cmd === 'get_taxes') return Promise.resolve([]);
+      if (cmd === 'get_payment_methods') return Promise.resolve([]);
+      if (cmd === 'get_setting') return Promise.resolve(null);
+      if (cmd === 'get_item_by_barcode') return Promise.resolve(bulkItem);
+      return Promise.resolve(null);
+    });
+
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
+
+    // Type bulk barcode BULK-CASE-1 into manual barcode field
+    fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: 'BULK-CASE-1' } });
+    fireEvent.click(screen.getByText('Add Item'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Smoke Bomb Case/i })).toBeInTheDocument();
+      expect(document.getElementById('label-final-total')?.textContent).toBe('$40.00');
+    });
+  });
+
+  it('enforces allow_oversell setting when stock is exceeded', async () => {
+    const limitedItem = { id: 70, barcode: '7001', name: 'Limited Rocket', price: 15.00, stock_quantity: 1 };
+    mockInvoke.mockImplementation((cmd: string, args?: any) => {
+      if (cmd === 'get_items') return Promise.resolve([limitedItem]);
+      if (cmd === 'get_discounts') return Promise.resolve([]);
+      if (cmd === 'get_taxes') return Promise.resolve([]);
+      if (cmd === 'get_payment_methods') return Promise.resolve([]);
+      if (cmd === 'get_setting') {
+        if (args.key === 'allow_oversell') return Promise.resolve('false');
+        return Promise.resolve(null);
+      }
+      if (cmd === 'get_item_by_barcode') return Promise.resolve(limitedItem);
+      return Promise.resolve(null);
+    });
+
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
+
+    // Add first unit
+    fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '7001' } });
+    fireEvent.click(screen.getByText('Add Item'));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Limited Rocket').length).toBeGreaterThan(0);
+    });
+
+    // Try adding second unit when stock is 1 and allow_oversell is false
+    fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '7001' } });
+    fireEvent.click(screen.getByText('Add Item'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot add. Only 1 units available in stock./i)).toBeInTheDocument();
+    });
+  });
+
+  it('validates custom discount numpad modal max percentage bounds', async () => {
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.00} lowStockThreshold={10} />);
+
+    // Open Custom Discount Modal
+    const customDiscBtn = await screen.findByText('Add Custom Discount');
+    fireEvent.click(customDiscBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Percentage (%)')).toBeInTheDocument();
+    });
+
+    // Select percentage mode
+    const pctBtn = screen.getByText('Percentage (%)');
+    fireEvent.click(pctBtn);
+
+    // Type 150 using key buttons
+    fireEvent.click(screen.getByText('1'));
+    fireEvent.click(screen.getByText('5'));
+    fireEvent.click(screen.getByText('0'));
+
+    // Apply
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Discount' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Percentage discount cannot exceed 100%')).toBeInTheDocument();
+    });
+  });
+
+  it('supports tax exempt items with tax_id = -1', async () => {
+    const exemptItem = { id: 88, barcode: '8801', name: 'Tax Free Item', price: 100.00, tax_id: -1 };
+    mockInvoke.mockImplementation((cmd: string, _args?: any) => {
+      if (cmd === 'get_items') return Promise.resolve([exemptItem]);
+      if (cmd === 'get_discounts') return Promise.resolve([]);
+      if (cmd === 'get_taxes') return Promise.resolve([{ id: 1, name: 'State Tax', rate: 10.0, scope: 'total' }]);
+      if (cmd === 'get_payment_methods') return Promise.resolve([]);
+      if (cmd === 'get_setting') return Promise.resolve(null);
+      if (cmd === 'get_item_by_barcode') return Promise.resolve(exemptItem);
+      return Promise.resolve(null);
+    });
+
+    render(<RegisterView scannedBarcode="" onClearScan={() => {}} taxRate={0.10} lowStockThreshold={10} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Type Barcode/i), { target: { value: '8801' } });
+    fireEvent.click(screen.getByText('Add Item'));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Tax Free Item').length).toBeGreaterThan(0);
+      // Tax should be $0.00 because tax_id is -1 (exempt)
+      expect(document.getElementById('label-final-total')?.textContent).toBe('$100.00');
+    });
+  });
 });

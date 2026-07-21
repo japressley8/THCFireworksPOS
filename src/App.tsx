@@ -12,6 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   DollarSign,
   Settings,
@@ -31,12 +32,14 @@ import {
   Video,
   Play,
   Pause,
-  Lock
+  Lock,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import RegisterView from './components/RegisterView';
 import AdminView from './components/AdminView';
 import ScannerListener from './components/ScannerListener';
-import { Theme, CartItem } from './types';
+import { Theme, CartItem, DbStatus } from './types';
 import logoImg from './logo.png';
 import { EasterEggModal } from './components/eastereggs/EasterEggModal';
 import { PlaybackWindow } from './components/PlaybackWindow';
@@ -125,6 +128,18 @@ export const App: React.FC = () => {
   const [dbPath, setDbPath] = useState<string>('Resolving SQLite path...');
   const [isScannerListening, setIsScannerListening] = useState<boolean>(true);
   const [dbConnected, setDbConnected] = useState<boolean>(false);
+
+  // Database status and recovery states
+  const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
+  const [isDbChecking, setIsDbChecking] = useState<boolean>(false);
+  const [isRecovering, setIsRecovering] = useState<boolean>(false);
+  void isDbChecking;
+  
+  // Exit cloud backup prompt states
+  const [exitBackupModalOpen, setExitBackupModalOpen] = useState<boolean>(false);
+  const [isExitBackingUp, setIsExitBackingUp] = useState<boolean>(false);
+  const [exitBackupError, setExitBackupError] = useState<string | null>(null);
+
   const [showTutorialModal, setShowTutorialModal] = useState<boolean>(false);
   const [tutorialMode, setTutorialMode] = useState<'volunteer' | 'admin'>('volunteer');
   const [activeTutorialStep, setActiveTutorialStep] = useState<number>(0);
@@ -179,6 +194,7 @@ export const App: React.FC = () => {
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState<boolean>(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [isPortable, setIsPortable] = useState<boolean>(false);
   const [showAdminWarning, setShowAdminWarning] = useState<boolean>(false);
 
   // Easter egg states
@@ -214,6 +230,17 @@ export const App: React.FC = () => {
         setShowRestoreModal(true);
       }
     }).catch(() => { });
+  }, []);
+
+  // Check if running in portable mode on mount
+  useEffect(() => {
+    invoke<boolean>('is_portable')
+      .then((res) => {
+        setIsPortable(res);
+      })
+      .catch((e) => {
+        console.error('Failed to check if portable:', e);
+      });
   }, []);
 
   // Global Event, Error, and Lifecycle Logger
@@ -731,7 +758,42 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadDatabasePath();
+    fetchDbStatus();
+    const interval = setInterval(fetchDbStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Setup window close requested listener
+  useEffect(() => {
+    let unlistenClose: (() => void) | null = null;
+
+    const setupCloseListener = async () => {
+      try {
+        const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
+          event.preventDefault();
+          try {
+            const cloudStatus = await invoke<{ is_connected: boolean }>('get_cloud_backup_status');
+            if (cloudStatus.is_connected) {
+              setExitBackupModalOpen(true);
+            } else {
+              await invoke('exit_app');
+            }
+          } catch (e) {
+            console.error("Failed to check cloud status on close:", e);
+            await invoke('exit_app');
+          }
+        });
+        unlistenClose = unlisten;
+      } catch (err) {
+        console.error("Failed to setup close listener:", err);
+      }
+    };
+
+    setupCloseListener();
+
+    return () => {
+      if (unlistenClose) unlistenClose();
+    };
   }, []);
 
   // Check developer mode status and listen to settings updates
@@ -784,14 +846,43 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const loadDatabasePath = async () => {
+  const fetchDbStatus = async (): Promise<DbStatus | null> => {
+    setIsDbChecking(true);
     try {
-      const path = await invoke<string>('get_db_path');
-      setDbPath(path);
-      setDbConnected(true);
+      const status = await invoke<DbStatus>('get_db_status');
+      if (status) {
+        setDbStatus(status);
+        setDbPath(status.resolved_db_path);
+        setDbConnected(status.primary_path_exists || status.is_temp);
+      }
+      setIsDbChecking(false);
+      return status;
     } catch (err) {
-      setDbPath('Failed to link database: ' + err);
+      console.error('Failed to fetch DB status:', err);
       setDbConnected(false);
+      setIsDbChecking(false);
+      return null;
+    }
+  };
+
+  const handleExitImmediately = async () => {
+    try {
+      await invoke('exit_app');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleExitWithBackup = async () => {
+    setIsExitBackingUp(true);
+    setExitBackupError(null);
+    try {
+      await invoke('trigger_final_cloud_backup');
+      await invoke('exit_app');
+    } catch (e) {
+      console.error("Exit cloud backup failed:", e);
+      setExitBackupError(String(e));
+      setIsExitBackingUp(false);
     }
   };
 
@@ -833,6 +924,227 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-custom-bg text-custom-text overflow-hidden font-sans" style={themeStyles}>
+
+      {/* TEMPORARY DATABASE WARNING BANNER */}
+      {dbStatus?.is_temp && (
+        <div className="bg-yellow-500/10 border-b border-yellow-500/25 p-3 flex items-center justify-between gap-4 select-none animate-in slide-in-from-top duration-200 shrink-0">
+          <div className="flex items-center gap-3 w-full md:w-auto min-w-0">
+            <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0 animate-pulse" />
+            <div className="min-w-0 flex-1">
+              <span className="block text-xs font-extrabold text-yellow-500 uppercase tracking-wide">Running in Temporary Mode</span>
+              <span className="block text-[10px] text-custom-muted mt-0.5 leading-tight">
+                Operating using local AppData backup. Reconnect the primary database drive (USB) to merge and restore full synchronization.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={isRecovering}
+            onClick={async () => {
+              setIsRecovering(true);
+              try {
+                const reconnected = await invoke<boolean>('rescan_for_primary_db');
+                if (reconnected) {
+                  const res = await invoke<{ overwritten: boolean }>('restore_primary_db');
+                  await fetchDbStatus();
+                  if (res.overwritten) {
+                    await showCustomAlert("Primary database drive successfully reconnected! Temporary changes have been merged back to the drive.", "Database Restored");
+                  } else {
+                    await showCustomAlert("Primary database drive reconnected successfully! No temporary changes were newer.", "Database Reconnected");
+                  }
+                } else {
+                  await showCustomAlert("Primary database storage location is still not detected. Please verify your USB drive is connected.", "Reconnection Failed");
+                }
+              } catch (e) {
+                await showCustomAlert("Error reconnecting database: " + e, "Error");
+              } finally {
+                setIsRecovering(false);
+              }
+            }}
+            className="px-4 py-1.5 bg-yellow-500 text-black font-extrabold text-xs rounded-lg transition-all active:scale-95 cursor-pointer border-0 uppercase hover:bg-yellow-400 shrink-0 flex items-center gap-1.5 shadow-sm"
+          >
+            {isRecovering && <RefreshCw className="h-3 w-3 animate-spin" />}
+            Reconnect & Sync Drive
+          </button>
+        </div>
+      )}
+
+      {/* DATABASE CONNECTION LOST DIALOG */}
+      {dbStatus && !dbStatus.primary_path_exists && !dbStatus.is_temp && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-custom-card border border-red-500/30 rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="absolute top-0 left-0 w-full h-[4px] bg-red-600 animate-pulse" />
+            
+            <div className="flex items-center gap-4 mb-6 mt-2">
+              <div className="p-3 bg-red-500/10 text-red-500 rounded-2xl border border-red-500/20">
+                <AlertTriangle className="h-7 w-7 text-red-500 animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-custom-text uppercase tracking-tight">Database Connection Lost</h3>
+                <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                  Configured Storage Drive Disconnected
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-sm text-custom-muted leading-relaxed">
+                The application cannot access the primary SQLite database file at:
+              </p>
+              <div className="bg-custom-input/60 rounded-xl p-3 border border-custom-border/30 font-mono text-xs break-all text-custom-text select-text selection:bg-red-500/30">
+                {dbStatus.custom_db_path || 'Default Executable Directory'}
+              </div>
+              <p className="text-xs text-custom-muted">
+                Please insert the USB flash drive or choose one of the following recovery options to restore operations:
+              </p>
+
+              <div className="space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isRecovering}
+                  onClick={async () => {
+                    setIsRecovering(true);
+                    try {
+                      const status = await fetchDbStatus();
+                      if (status && status.primary_path_exists) {
+                        // Reconnected
+                      } else {
+                        await showCustomAlert("The database storage location is still not accessible. Please ensure your USB drive is connected and try again.", "Drive Not Detected");
+                      }
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setIsRecovering(false);
+                    }
+                  }}
+                  className="w-full py-3 bg-custom-primary text-white font-bold text-sm rounded-xl transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2 border-0 disabled:opacity-50"
+                >
+                  {isRecovering && <RefreshCw className="h-4 w-4 animate-spin" />}
+                  I Reconnected the Drive (Retry)
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isRecovering}
+                  onClick={async () => {
+                    setIsRecovering(true);
+                    try {
+                      if (await showCustomConfirm("Would you like to load a temporary copy of the database from local backups? Note: any new sales made in temporary mode will be merged back when you reconnect the primary drive.", "Use Temporary Database")) {
+                        await invoke('use_backup_as_temp_db');
+                        await fetchDbStatus();
+                      }
+                    } catch (e) {
+                      await showCustomAlert("Failed to load local backup: " + e, "Error");
+                    } finally {
+                      setIsRecovering(false);
+                    }
+                  }}
+                  className="w-full py-3 bg-custom-primary/10 hover:bg-custom-primary/20 border border-custom-primary/30 text-custom-primary font-bold text-sm rounded-xl transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  Work in Temporary Mode (Use Local Backup)
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isRecovering}
+                  onClick={async () => {
+                    setIsRecovering(true);
+                    try {
+                      const path = await invoke<string>('choose_new_location_restore');
+                      if (path) {
+                        await fetchDbStatus();
+                        await showCustomAlert(`Database successfully restored and set to new location: ${path}`, "Database Restored");
+                      }
+                    } catch (e) {
+                      if (e !== 'No folder selected.') {
+                        await showCustomAlert("Failed to restore to new location: " + e, "Error");
+                      }
+                    } finally {
+                      setIsRecovering(false);
+                    }
+                  }}
+                  className="w-full py-3 bg-custom-accent/15 hover:bg-custom-accent/25 border border-custom-accent/30 text-custom-accent font-bold text-sm rounded-xl transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  Restore Backup to a New Permanent Location...
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXIT CLOUD BACKUP CONFIRMATION DIALOG */}
+      {exitBackupModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-custom-card border border-custom-border rounded-2xl p-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-custom-primary to-custom-accent" />
+
+            <div className="flex items-center gap-3.5 mb-5 mt-2">
+              <div className="p-3 bg-custom-primary/20 text-custom-primary rounded-2xl border border-custom-primary/30">
+                <Database className={`h-6 w-6 text-custom-accent ${isExitBackingUp ? 'animate-spin' : ''}`} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-custom-text uppercase tracking-tight">Closing Application</h3>
+                <p className="text-[10px] text-custom-muted font-bold uppercase tracking-wider">
+                  Cloud Synchronization Check
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-custom-muted leading-relaxed">
+                Your Google Drive account is connected. Would you like to perform a final cloud backup before closing the POS system?
+              </p>
+
+              {exitBackupError && (
+                <div className="p-3 bg-red-950/40 border border-red-500/20 text-red-400 text-xs rounded-xl flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>Backup failed: {exitBackupError}</span>
+                </div>
+              )}
+
+              {isExitBackingUp && (
+                <div className="flex items-center justify-center gap-2 p-4 bg-custom-input/40 border border-custom-border/20 rounded-xl">
+                  <Loader2 className="h-5 w-5 text-custom-primary animate-spin" />
+                  <span className="text-xs font-bold text-custom-text">Syncing database to Google Drive...</span>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  id="btn-exit-backup"
+                  disabled={isExitBackingUp}
+                  onClick={handleExitWithBackup}
+                  className="w-full py-3.5 bg-custom-primary text-white font-bold text-xs rounded-xl transition-all shadow-md active:scale-98 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5 border-0 uppercase tracking-wider"
+                >
+                  {isExitBackingUp ? 'Backing Up...' : 'Sync Cloud & Exit'}
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    id="btn-exit-no-backup"
+                    disabled={isExitBackingUp}
+                    onClick={handleExitImmediately}
+                    className="flex-1 py-2.5 bg-custom-input border border-custom-border hover:bg-red-500/10 hover:text-red-500 text-custom-muted font-bold text-xs rounded-xl transition-all disabled:opacity-50 cursor-pointer uppercase tracking-wider"
+                  >
+                    Exit Immediately
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-exit-cancel"
+                    disabled={isExitBackingUp}
+                    onClick={() => setExitBackupModalOpen(false)}
+                    className="flex-1 py-2.5 bg-custom-input border border-custom-border hover:bg-custom-primary/20 text-custom-text font-bold text-xs rounded-xl transition-all disabled:opacity-50 cursor-pointer uppercase tracking-wider"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* UPDATE MODAL POPUP */}
       {showUpdateModal && updateAvailable && (
@@ -906,27 +1218,42 @@ export const App: React.FC = () => {
                 >
                   Remind Me Later
                 </button>
-                <button
-                  id="btn-update-execute"
-                  onClick={handleInstallUpdate}
-                  disabled={isInstallingUpdate}
-                  className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isInstallingUpdate ? 'Installing…' : 'Update & Restart'}
-                </button>
+                {isPortable ? (
+                  <button
+                    id="btn-update-download-github"
+                    onClick={async () => {
+                      await handleOpenReleasesPage();
+                      setShowUpdateModal(false);
+                    }}
+                    className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10"
+                  >
+                    Go to GitHub Releases
+                  </button>
+                ) : (
+                  <button
+                    id="btn-update-execute"
+                    onClick={handleInstallUpdate}
+                    disabled={isInstallingUpdate}
+                    className="flex-1 py-3 bg-custom-primary hover:bg-custom-primary-hover text-white font-extrabold text-xs rounded-xl transition-all active:scale-95 shadow-lg border border-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isInstallingUpdate ? 'Installing…' : 'Update & Restart'}
+                  </button>
+                )}
               </div>
 
               {/* Secondary fallback link */}
-              <div className="text-center pt-1">
-                <button
-                  id="btn-update-view-github"
-                  onClick={handleOpenReleasesPage}
-                  disabled={isInstallingUpdate}
-                  className="text-[10px] text-custom-muted hover:text-custom-accent underline underline-offset-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  View releases on GitHub
-                </button>
-              </div>
+              {!isPortable && (
+                <div className="text-center pt-1">
+                  <button
+                    id="btn-update-view-github"
+                    onClick={handleOpenReleasesPage}
+                    disabled={isInstallingUpdate}
+                    className="text-[10px] text-custom-muted hover:text-custom-accent underline underline-offset-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    View releases on GitHub
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1388,6 +1715,8 @@ export const App: React.FC = () => {
             customAlert={showCustomAlert}
             subTab={adminSubTab}
             onSubTabChange={setAdminSubTab}
+            dbStatus={dbStatus}
+            onRefreshDbStatus={fetchDbStatus}
             onTriggerUpdateCheck={async () => {
               try {
                 const { check } = await import('@tauri-apps/plugin-updater');
@@ -1561,8 +1890,11 @@ export const App: React.FC = () => {
                             <li>Use the <strong>Void Sale</strong> feature to cancel a sale if it was made in error.</li>
                             <li>If enabled, select <strong>Pay with GoDaddy Terminal</strong> to process credit card sales directly on a paired Smart Terminal. Approved transactions are saved automatically and receipts are output via its built-in printer.</li>
                           </ul>
-                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-200 mt-2">
-                            <strong>⚠️ Important:</strong> While this POS tracks item sales, inventory, and generates analytics, it <strong>does not</strong> process credit cards or execute financial transfers (unless configured with a GoDaddy terminal). You must collect customer funds externally using your own card reader or cash box before completing the sale.
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-200 mt-2 flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <strong>Important:</strong> While this POS tracks item sales, inventory, and generates analytics, it <strong>does not</strong> process credit cards or execute financial transfers (unless configured with a GoDaddy terminal). You must collect customer funds externally using your own card reader or cash box before completing the sale.
+                            </div>
                           </div>
                         </div>
                       </>

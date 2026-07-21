@@ -15,6 +15,8 @@ THC Fireworks POS (Thousand Hills Church POS) is a premium, local-first Point of
   * **THC Light** — A bright emerald-toned light mode for daytime use.
   * **Patriotic** — A light-themed palette with off-white/slate background, deep navy text, and patriotic red & blue accents. Ideal for daytime outdoor use.
   * **High Contrast (Sunlight)** — Maximum black-on-white contrast for direct sunlight readability.
+* **🅿️ Parked Carts:** Park active transactions with custom customer reference names or order notes, allowing cashiers to assist other customers without losing cart items or applied discounts. Resume or dismiss parked carts anytime from the header button.
+* **💳 Split Payment Methods:** Split a customer's order balance across multiple tender types (Cash, Card, GoDaddy Terminal, Custom methods) with real-time remaining balance validation and receipt itemization.
 * **💳 GoDaddy Smart Terminal Integration:** Process card payments directly using a GoDaddy Smart Terminal Flex v1. Configure the terminal IP and pair using a pairing code in the Settings tab. Initiate card payments at checkout, and print receipts using the terminal's built-in printer.
 * **💾 100% USB Portability, Backups & Recovery Banner:** The application database (`firework_pos.db`) is stored in the same folder as the app. Simply copy the portable executable file to a USB drive and plug it into any Windows computer. Includes silent, automatic local backup syncs to `%LOCALAPPDATA%\THCFireworksPOS\` after every change. If the database file goes missing, it auto-restores on startup and alerts the user with a recovery confirmation banner.
 * **☁️ Google Drive Cloud Backup:** Configure Google OAuth Client ID and Secret in the Data Management console to link a Google account. The database is synchronized to Google Drive automatically every 30 minutes. Supports manual backup triggers and full database restores directly from your cloud backup.
@@ -75,9 +77,10 @@ Every release includes two files. Here's how to choose:
 ### 1. The Sales Register
 * **Adding Items:** Point and scan a barcode, or manually select items from the catalog.
 * **Barcode Scanner Behavior:** The global keyboard wedge scanner is only active when you are on the **Sales Register** tab. Switching to the Admin panel automatically disables it to avoid stray inputs.
+* **Parked Carts:** Need to step away or wait for a customer? Click **Park Cart** to store the active transaction with a customer name or note. Click **Parked Carts** in the header to view, restore, or manage saved carts.
 * **Discounts:** Click the discount presets (e.g. Church Member) or trigger the custom discount keypad to type percentages/fixed dollar amounts.
   * *Numpad Support:* You can use either the on-screen buttons or your physical keyboard's numpad to type numbers, delete with Backspace, close with Escape, and apply with Enter.
-* **Checkout:** Click **Complete Sale** to record the transaction. Choose Cash, Card, or GoDaddy Terminal. GoDaddy terminal payments send the amount directly to the paired device, record the transaction upon approval, and print via its built-in printer.
+* **Checkout & Split Payments:** Click **Complete Sale** to record the transaction. Choose Cash, Card, GoDaddy Terminal, or **Split Payment**. Split payment allows paying part of the total with Cash and the remainder via Card or GoDaddy Terminal Flex.
 * **Receipts:** Hit **Print Receipt** (shortcut `Ctrl + P`) to print or save a PDF. The virtual receipt preview is now scrollable and correctly sized to accurately represent a real 72mm receipt printout.
 
 ### 2. Showcase Videos (Secondary Playback Window)

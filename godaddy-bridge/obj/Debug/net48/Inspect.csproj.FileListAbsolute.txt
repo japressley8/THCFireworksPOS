@@ -1,0 +1,17 @@
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Debug\net48\inspect.exe.config
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Debug\net48\inspect.exe
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Debug\net48\inspect.pdb
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Debug\net48\Newtonsoft.Json.dll
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Debug\net48\RestSharp.dll
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\bin\Debug\net48\PoyntPOSBridge.dll
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.csproj.AssemblyReference.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.csproj.SuggestedBindingRedirects.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\inspect.exe.config
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.AssemblyInfoInputs.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.AssemblyInfo.cs
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.csproj.CoreCompileInputs.cache
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.sourcelink.json
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\Inspect.csproj.Up2Date
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\inspect.exe
+C:\Users\Jacobs-Desktop\OneDrive\Projects\THCFireworksPOS\godaddy-bridge\obj\Debug\net48\inspect.pdb

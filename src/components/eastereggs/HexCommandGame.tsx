@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Sparkles, RotateCcw, Tent } from 'lucide-react';
+import { Sparkles, RotateCcw, Tent, Trophy } from 'lucide-react';
 import { triggerConfetti } from '../shared/confettiUtils';
 import {
   genContinentColors,
@@ -522,11 +522,15 @@ function calcReinforcements(cells: Record<string, HexCell>, pid: number, contine
   return baseCount + (cells['0,0']?.owner === pid ? 1 : 0) + bonus;
 }
 
-function checkWin(cells: Record<string, HexCell>, players: PlayerState[], elim: number[], total: number) {
+function checkWin(cells: Record<string, HexCell>, players: PlayerState[], elim: number[], total: number): { id: number; type: 'majority' | 'elimination' } | null {
   const active = players.filter(p => !elim.includes(p.id));
-  if (active.length === 1) return active[0].id;
+  if (active.length === 1) return { id: active[0].id, type: 'elimination' };
   const req = requiredHexes(players.length, total);
-  for (const p of active) { if (ownedCount(cells, p.id) >= req) return p.id; }
+  for (const p of active) {
+    if (ownedCount(cells, p.id) >= req) {
+      return { id: p.id, type: 'majority' };
+    }
+  }
   return null;
 }
 
@@ -673,7 +677,7 @@ const PHASE_COLORS: { [k: string]: { bg: string; text: string; chip: string } } 
   GAMEOVER: { bg: 'rgba(245,158,11,0.12)', text: '#f59e0b', chip: 'rgba(245,158,11,0.35)' },
 };
 const PHASE_LABELS: { [k: string]: string } = {
-  DRAFT: 'DRAFT', REINFORCE: '⊕ REINFORCE', ATTACK: '⚔ ATTACK', FORTIFY: '🛡 FORTIFY', GAMEOVER: '🏆 VICTORY',
+  DRAFT: 'DRAFT', REINFORCE: 'REINFORCE', ATTACK: 'ATTACK', FORTIFY: 'FORTIFY', GAMEOVER: 'VICTORY',
 };
 
 // ============================================================
@@ -1333,16 +1337,17 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
 
         const elim = [...prev.eliminatedPlayers];
         for (const pl of prev.players) { if (!elim.includes(pl.id) && ownedCount(nc, pl.id) === 0) elim.push(pl.id); }
-        const winner = checkWin(nc, prev.players, elim, prev.totalHexes);
-        if (winner !== null) {
+        const winInfo = checkWin(nc, prev.players, elim, prev.totalHexes);
+        if (winInfo !== null) {
           setTimeout(() => triggerConfetti(), 400);
         }
         return {
           ...prev,
           cells: nc,
           eliminatedPlayers: elim,
-          phase: winner !== null ? 'GAMEOVER' : prev.phase,
-          winner
+          phase: winInfo !== null ? 'GAMEOVER' : prev.phase,
+          winner: winInfo !== null ? winInfo.id : null,
+          winType: winInfo !== null ? winInfo.type : null
         };
       });
 
@@ -1558,14 +1563,33 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
   const confirmConq = useCallback(() => {
     if (!conqPanel || !gs) return;
     const { src, dst, count, na } = conqPanel;
-    setGs(p => p ? {
-      ...p,
-      cells: {
-        ...p.cells,
-        [src]: { ...p.cells[src], troops: na - count },
-        [dst]: { ...p.cells[dst], owner: p.cells[src].owner, troops: count }
+    setGs(prev => {
+      if (!prev) return null;
+      const nextCells = {
+        ...prev.cells,
+        [src]: { ...prev.cells[src], troops: na - count },
+        [dst]: { ...prev.cells[dst], owner: prev.cells[src].owner, troops: count }
+      };
+
+      const elim = [...prev.eliminatedPlayers];
+      for (const pl of prev.players) {
+        if (!elim.includes(pl.id) && ownedCount(nextCells, pl.id) === 0) {
+          elim.push(pl.id);
+        }
       }
-    } : null);
+      const winInfo = checkWin(nextCells, prev.players, elim, prev.totalHexes);
+      if (winInfo !== null) {
+        setTimeout(() => triggerConfetti(), 400);
+      }
+      return {
+        ...prev,
+        cells: nextCells,
+        eliminatedPlayers: elim,
+        phase: winInfo !== null ? 'GAMEOVER' : prev.phase,
+        winner: winInfo !== null ? winInfo.id : null,
+        winType: winInfo !== null ? winInfo.type : null
+      };
+    });
     setConqPanel(null);
     setDice(null);
     if (savedCamRef.current) {
@@ -1865,7 +1889,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
           animation: 'hcWinPop 0.65s cubic-bezier(0.34,1.56,0.64,1)',
           boxShadow: `0 0 80px ${w.color}35`
         }}>
-          <div style={{ fontSize: 50, marginBottom: 12 }}>🏆</div>
+          <Trophy style={{ width: 50, height: 50, color: w.color, margin: '0 auto 12px' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 8 }}>
             <div style={{
               width: 50, height: 50, borderRadius: '50%', background: `${w.color}22`,
@@ -1873,10 +1897,15 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
             }}>
               <SuitIcon suit={w.suit} size={28} color={w.color} />
             </div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: w.color }}>Player {w.id} Wins!</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: w.color }}>
+              Player {w.id} Wins{(gs as any).winType === 'majority' ? ' by Majority!' : '!'}
+            </div>
           </div>
           <div style={{ color: theme.muted, fontSize: 13, marginBottom: 28 }}>
-            Conquered the realm in {gs.turn} turns
+            {(gs as any).winType === 'majority'
+              ? `Won by majority control in ${gs.turn} turns`
+              : `Conquered the realm in ${gs.turn} turns`
+            }
           </div>
           <button onClick={resetLobby} style={{
             padding: '12px 36px',
@@ -1884,7 +1913,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
             color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: 'pointer',
             boxShadow: `0 4px 22px ${w.color}45`
           }}>
-            🔄 Play Again
+            Play Again
           </button>
         </div>
       </div>
@@ -1945,7 +1974,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
         boxShadow: '0 8px 28px rgba(0,0,0,0.6)', animation: 'hcFadeUp 0.2s ease'
       }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: theme.primary, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>
-          🛡 Fortify
+          Fortify
         </div>
         <input type="range" min={1} max={max} value={frtPanel.count}
           onChange={e => setFrtPanel(p => p ? { ...p, count: +e.target.value } : null)}
@@ -1984,7 +2013,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
         boxShadow: '0 8px 28px rgba(0,0,0,0.6)', animation: 'hcFadeUp 0.2s ease'
       }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: theme.primary, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>
-          ⚔️ Occupy Territory
+          Occupy Territory
         </div>
         <input type="range" min={min} max={max} value={count}
           onChange={e => setConqPanel(p => p ? { ...p, count: +e.target.value } : null)}
@@ -2032,7 +2061,6 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
             display: 'flex', gap: 8, fontSize: 11, color: theme.muted, padding: '7px 10px',
             background: `${theme.primary}14`, borderRadius: 8, border: `1px solid ${theme.primary}28`
           }}>
-            <span>🗺️</span>
             <span><strong style={{ color: theme.text }}>{total} total hexes</strong>
               {' · '}{req} to win ({cfg.playerCount === 2 ? '100%' : cfg.playerCount === 3 ? '90%' : '80%'})</span>
           </div>
@@ -2048,7 +2076,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
                     background: cfg.setupMode === m ? theme.primary : 'transparent',
                     color: cfg.setupMode === m ? '#fff' : theme.muted
                   }}>
-                  {m === 'auto' ? '⚡ Auto-Assign' : '✋ Manual Draft'}
+                  {m === 'auto' ? 'Auto-Assign' : 'Manual Draft'}
                 </button>
               ))}
             </div>
@@ -2066,7 +2094,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
                       background: cfg.autoMode === m ? theme.accent : 'transparent',
                       color: cfg.autoMode === m ? '#fff' : theme.muted
                     }}>
-                    {m === 'random' ? '🎲 True Random' : '🏔️ Clumped'}
+                    {m === 'random' ? 'True Random' : 'Clumped'}
                   </button>
                 ))}
               </div>
@@ -2103,7 +2131,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
             color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 800, cursor: 'pointer',
             boxShadow: `0 4px 22px ${theme.primary}50`
           }}>
-          ⚔️ Start Game
+          Start Game
         </button>
         {/* Resume */}
         {cachedState?.phase && cachedState.phase !== 'LOBBY' && (
@@ -2673,7 +2701,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
                       gap: '4px',
                       whiteSpace: 'nowrap'
                     }}>
-                    ⚔️ Attack Again
+                    Attack Again
                   </button>
                   <button onClick={retreatCombat}
                     style={{
@@ -2691,7 +2719,7 @@ export const HexCommandGame: React.FC<GameProps> = ({ cachedState, onSaveCache }
                       gap: '4px',
                       whiteSpace: 'nowrap'
                     }}>
-                    🏳️ Retreat
+                    Retreat
                   </button>
                 </div>
               </div>

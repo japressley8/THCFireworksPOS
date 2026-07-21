@@ -1064,10 +1064,9 @@ export const TrigonGame: React.FC<GameProps> = ({
 
         // Test if nextPlayer can play tempPieceForRound
         if (!hasAnyLegalMoves(nextPlayer, nextOwners, [tempPieceForRound!])) {
-          // Player cannot play the round piece -> eliminated!
+          // Player cannot play the round piece -> skipped!
           nextSkipped.push(nextPlayer);
-          setSkippedPlayers([...nextSkipped]);
-          showAnnouncement(`Player ${nextPlayer + 1} cannot play the piece and is eliminated!`);
+          showAnnouncement(`Player ${nextPlayer + 1} cannot play the piece and is skipped!`);
           lastCheckedPlayer = nextPlayer;
         } else {
           // Player can play! They become the next player.
@@ -1083,7 +1082,7 @@ export const TrigonGame: React.FC<GameProps> = ({
           finalInventories[p] = p === nextPlayer ? [nextPieceForRound!] : [];
         }
         setPlayerInventories(finalInventories);
-        setSkippedPlayers(nextSkipped);
+        // Do not permanently save skipped players since they can play in future rounds with different pieces
         setExtraPieceForRound(nextPieceForRound);
         setCurrentPlayer(nextPlayer);
         return;
@@ -1134,9 +1133,8 @@ export const TrigonGame: React.FC<GameProps> = ({
         if (nextSkipped.includes(nextPlayer)) continue;
 
         // Check if next player is completely blocked
-        if (!hasAnyLegalMoves(nextPlayer, nextOwners)) {
+        if (!hasAnyLegalMoves(nextPlayer, nextOwners, nextInventories[nextPlayer])) {
           nextSkipped.push(nextPlayer);
-          setSkippedPlayers([...nextSkipped]);
           showAnnouncement(`Player ${nextPlayer + 1} has no moves and is skipped!`);
         } else {
           // Valid player found
@@ -1645,7 +1643,7 @@ export const TrigonGame: React.FC<GameProps> = ({
             </span>
             {extraPiecesMode ? (
               <span className="text-[8px] font-black text-rose-400 uppercase tracking-wider animate-pulse">
-                Place or Eliminated!
+                Place or Skipped!
               </span>
             ) : (
               <span className="text-[8px] font-extrabold uppercase" style={{ color: theme.muted }}>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file UpdateModal.test.tsx
  *
  * Tests for the App.tsx native auto-updater modal flow:
@@ -58,6 +58,7 @@ const buildMockUpdate = (overrides: Record<string, any> = {}) => ({
 // ---------------------------------------------------------------------------
 function setupDefaultInvoke() {
   mockInvoke.mockImplementation((cmd: string) => {
+    if (cmd === 'is_portable') return Promise.resolve(false);
     if (cmd === 'get_items') return Promise.resolve([]);
     if (cmd === 'get_discounts') return Promise.resolve([]);
     if (cmd === 'get_sales') return Promise.resolve([]);
@@ -195,5 +196,57 @@ describe('App.tsx — Native Auto-Updater Modal', () => {
     if (closeBtn) {
       expect(closeBtn).toBeDisabled();
     }
+  });
+
+  describe('Portable Version update behavior', () => {
+    beforeEach(() => {
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === 'is_portable') return Promise.resolve(true);
+        if (cmd === 'get_items') return Promise.resolve([]);
+        if (cmd === 'get_discounts') return Promise.resolve([]);
+        if (cmd === 'get_sales') return Promise.resolve([]);
+        if (cmd === 'get_yearly_sales_summary') return Promise.resolve([]);
+        if (cmd === 'get_payment_methods') return Promise.resolve([]);
+        if (cmd === 'get_taxes') return Promise.resolve([]);
+        if (cmd === 'get_backup_restore_info') return Promise.resolve({ restored: false, restored_at: null, local_backup_last_updated: null });
+        if (cmd === 'check_developer_bypass') return Promise.resolve(false);
+        if (cmd === 'get_setting') return Promise.resolve(null);
+        if (cmd === 'log_event') return Promise.resolve(undefined);
+        return Promise.resolve(null);
+      });
+    });
+
+    it('renders the "Go to GitHub Releases" button (not "Update & Restart") when update is available', async () => {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      (check as any).mockResolvedValueOnce(buildMockUpdate());
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /go to github releases/i })).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /update & restart/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /view releases on github/i })).not.toBeInTheDocument();
+    });
+
+    it('calls openUrl and closes the modal when "Go to GitHub Releases" is clicked', async () => {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      (check as any).mockResolvedValueOnce(buildMockUpdate());
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /go to github releases/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /go to github releases/i }));
+
+      await waitFor(() => {
+        expect(openUrl).toHaveBeenCalledWith('https://github.com/japressley8/THCFireworksPOS/releases');
+        expect(screen.queryByRole('button', { name: /go to github releases/i })).not.toBeInTheDocument();
+      });
+    });
   });
 });

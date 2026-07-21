@@ -64,6 +64,17 @@ export interface DeleteSaleConfirmation {
   finalTotal: number;
 }
 
+export interface SalePaymentDetail {
+  id?: number;
+  sale_id?: number;
+  payment_method_id?: number | null;
+  payment_method_name: string;
+  amount_tendered: number;
+  fee_amount: number;
+  fee_mode: 'deducted' | 'on_top';
+  godaddy_trans_id?: string | null;
+}
+
 export interface Sale {
   id: number;
   timestamp: string;
@@ -72,6 +83,7 @@ export interface Sale {
   tax_total: number;
   final_total: number;
   items?: SaleItemDetail[]; // Populated in admin view
+  payments?: SalePaymentDetail[]; // Populated for split / detailed payments
   payment_method?: string;
   godaddy_transaction_id?: string;
   transaction_fee?: number;
@@ -86,6 +98,20 @@ export interface PaymentMethod {
   fee_flat: number;
   is_custom: number;
   status: string;
+  fee_mode?: 'deducted' | 'on_top';
+}
+
+export interface ParkedCart {
+  id: number;
+  label: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  cart_json: string; // Serialized CartItem[]
+  subtotal: number;
+  tax_total: number;
+  discount_total: number;
+  final_total: number;
+  created_at: string;
 }
 
 export interface Theme {
@@ -138,7 +164,9 @@ export type ExportableTable =
   | 'sale_items'
   | 'settings'
   | 'item_price_history'
-  | 'payment_methods';
+  | 'payment_methods'
+  | 'parked_carts'
+  | 'sale_payments';
 
 export interface BackupRestoreInfo {
   restored: boolean;
@@ -156,4 +184,12 @@ export interface ImportResult {
   imported: number;
   skipped: number;
   errors: string[];
+}
+
+export interface DbStatus {
+  custom_db_path: string | null;
+  is_temp: boolean;
+  original_custom_path: string | null;
+  primary_path_exists: boolean;
+  resolved_db_path: string;
 }

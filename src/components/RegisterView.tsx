@@ -9,7 +9,7 @@
  * 4. Receipt Rendering: Designs and prints structured receipts formatted for standard 80mm thermal roll printers.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { triggerConfetti } from './shared/confettiUtils';
 import { defaultConfirm, defaultAlert } from './shared/dialogUtils';
@@ -30,9 +30,19 @@ import {
   Video,
   Package,
   AlertTriangle,
-  Loader2
+  Loader2,
+  CreditCard,
+  Smartphone,
+  Landmark,
+  Banknote,
+  MonitorSmartphone,
+  Calculator,
+  Bookmark
 } from 'lucide-react';
-import { Item, Discount, CartItem, Tax, PaymentMethod } from '../types';
+import { Item, Discount, CartItem, Tax, PaymentMethod, ParkedCart, SalePaymentDetail, Theme } from '../types';
+import { ParkCartModal } from './shared/ParkCartModal';
+import { ParkedCartsModal } from './shared/ParkedCartsModal';
+import { SplitPaymentModal } from './shared/SplitPaymentModal';
 
 interface RegisterViewProps {
   scannedBarcode: string;
@@ -45,6 +55,7 @@ interface RegisterViewProps {
   customConfirm?: (message: string, title?: string, options?: { confirmText?: string; cancelText?: string; isDanger?: boolean }) => Promise<boolean>;
   customAlert?: (message: string, title?: string) => Promise<boolean>;
   onNavigateToPairing?: () => void;
+  theme?: Theme;
 }
 
 export const RegisterView: React.FC<RegisterViewProps> = ({
@@ -57,7 +68,8 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   setCart: passedSetCart,
   customConfirm,
   customAlert,
-  onNavigateToPairing
+  onNavigateToPairing,
+  theme
 }) => {
   // Controlled fallback for testing / standalone usage
   const [localCart, localSetCart] = useState<CartItem[]>([]);
@@ -91,7 +103,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [lastSaleData, setLastSaleData] = useState<any>(null);
   const [pendingAutoPrint, setPendingAutoPrint] = useState<boolean>(false);
-  const [organizationName, setOrganizationName] = useState<string>('🎆 THC FIREWORKS 🎆');
+  const [organizationName, setOrganizationName] = useState<string>('THC FIREWORKS');
   const [receiptMessage, setReceiptMessage] = useState<string>('');
   const [autoPrintReceipts, setAutoPrintReceipts] = useState<boolean>(true);
   const [receiptColumnWidth, setReceiptColumnWidth] = useState<number>(32);
@@ -119,6 +131,12 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
 
   // Notification banner
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Parked Carts & Split Payments
+  const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
+  const [showParkCartModal, setShowParkCartModal] = useState<boolean>(false);
+  const [showParkedCartsModal, setShowParkedCartsModal] = useState<boolean>(false);
+  const [showSplitPaymentModal, setShowSplitPaymentModal] = useState<boolean>(false);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -153,7 +171,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
         console.error("Failed to load allow_oversell setting", err);
       }
 
-      let orgName = '🎆 THC FIREWORKS 🎆';
+      let orgName = 'THC FIREWORKS';
       try {
         const orgVal = await invoke<string | null>('get_setting', { key: 'organization_name' });
         if (orgVal && orgVal.trim() !== '') orgName = orgVal;
@@ -244,6 +262,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       setPaymentMethods(paymentMethodsList);
       setIsCashChangeCalculatorEnabled(changeCalcEnabled);
       setGodaddyPairingStatus(pairingStatus);
+      loadParkedCarts();
 
       // Sync cart items with fresh db data
       setCart(prevCart => {
@@ -257,6 +276,143 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       });
     } catch (err) {
       showNotice('Failed to load database: ' + err, 'error');
+    }
+  };
+
+  const loadParkedCarts = async () => {
+    try {
+      const list = await invoke<ParkedCart[]>('get_parked_carts');
+      setParkedCarts(list || []);
+    } catch (err) {
+      console.error('Failed to load parked carts:', err);
+    }
+  };
+
+  const handleParkCartConfirm = async (label: string, customerName?: string, customerPhone?: string) => {
+    if (cart.length === 0) return;
+    try {
+      const cartJson = JSON.stringify(cart);
+      await invoke('save_parked_cart', {
+        label,
+        customerName: customerName || null,
+        customerPhone: customerPhone || null,
+        cartJson,
+        subtotal,
+        taxTotal,
+        discountTotal,
+        finalTotal,
+      });
+      setCart([]);
+      setShowParkCartModal(false);
+      showNotice(`Cart parked successfully as "${label}".`, 'success');
+      loadParkedCarts();
+    } catch (err) {
+      showNotice(`Failed to park cart: ${err}`, 'error');
+    }
+  };
+
+  const handleRecallParkedCart = async (parkedCart: ParkedCart) => {
+    try {
+      if (cart.length > 0) {
+        const autoLabel = `Auto-parked hold (${cart.length} items - $${finalTotal.toFixed(2)})`;
+        await invoke('save_parked_cart', {
+          label: autoLabel,
+          customerName: null,
+          customerPhone: null,
+          cartJson: JSON.stringify(cart),
+          subtotal,
+          taxTotal,
+          discountTotal,
+          finalTotal,
+        });
+        showNotice(`Current register cart was auto-parked to load "${parkedCart.label}".`, 'success');
+      }
+
+      const recalledItems: CartItem[] = JSON.parse(parkedCart.cart_json);
+      setCart(recalledItems);
+
+      await invoke('delete_parked_cart', { id: parkedCart.id });
+      setShowParkedCartsModal(false);
+      loadParkedCarts();
+      showNotice(`Loaded parked cart "${parkedCart.label}".`, 'success');
+    } catch (err) {
+      showNotice(`Failed to recall parked cart: ${err}`, 'error');
+    }
+  };
+
+  const handleDeleteParkedCart = async (id: number) => {
+    try {
+      await invoke('delete_parked_cart', { id });
+      loadParkedCarts();
+      showNotice('Parked cart deleted.', 'success');
+    } catch (err) {
+      showNotice(`Failed to delete parked cart: ${err}`, 'error');
+    }
+  };
+
+  const handleCompleteSplitSale = async (payments: SalePaymentDetail[], totalSurcharge: number) => {
+    setIsCompletingSale(true);
+    setShowSplitPaymentModal(false);
+    try {
+      const itemsPayload = cart.map((i) => ({
+        item_id: i.item.id,
+        quantity: i.quantity,
+        price_at_sale:
+          i.isBulk && i.item.bulk_price !== null && i.item.bulk_price !== undefined
+            ? i.item.bulk_price
+            : i.item.price,
+        is_bulk: !!i.isBulk,
+      }));
+
+      const finalGrandTotal = finalTotal + totalSurcharge;
+
+      const saleId = await invoke<number>('complete_sale_with_payments', {
+        items: itemsPayload,
+        subtotal,
+        discountTotal,
+        taxTotal,
+        finalTotal: finalGrandTotal,
+        paymentMethod: 'Split',
+        godaddyTransactionId: payments.find((p) => p.godaddy_trans_id)?.godaddy_trans_id || null,
+        transactionFee: payments.reduce((sum, p) => sum + p.fee_amount, 0),
+        payments: payments.map((p) => ({
+          payment_method_id: p.payment_method_id || null,
+          payment_method_name: p.payment_method_name,
+          amount_tendered: p.amount_tendered,
+          fee_amount: p.fee_amount,
+          fee_mode: p.fee_mode,
+          godaddy_trans_id: p.godaddy_trans_id || null,
+        })),
+      });
+
+      const saleData = {
+        id: saleId,
+        timestamp: new Date().toLocaleString(),
+        cart: [...cart],
+        subtotal,
+        discountName: getActiveDiscountName(),
+        discountTotal,
+        taxTotal,
+        surchargeTotal: totalSurcharge,
+        finalTotal: finalGrandTotal,
+        paymentMethod: 'Split',
+        payments,
+      };
+
+      setLastSaleData(saleData);
+
+      if (autoPrintReceipts) {
+        setPendingAutoPrint(true);
+      }
+
+      setCart([]);
+      setShowReceiptModal(true);
+      showNotice('Split payment sale completed successfully!', 'success');
+      loadParkedCarts();
+    } catch (err) {
+      showNotice(`Failed to complete split sale: ${err}`, 'error');
+    } finally {
+      setIsCompletingSale(false);
     }
   };
 
@@ -373,20 +529,18 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
   };
 
   // Calculations
-  const calculateCartSubtotal = () => {
+  const subtotal = useMemo(() => {
     return cart.reduce((total, i) => {
       const price = i.isBulk && i.item.bulk_price !== null && i.item.bulk_price !== undefined ? i.item.bulk_price : i.item.price;
       return total + (price * i.quantity);
     }, 0);
-  };
+  }, [cart]);
 
-  const parseTags = (tagsStr?: string): string[] => {
-    if (!tagsStr) return [];
-    return tagsStr.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
-  };
-
-  const getDiscountDetails = () => {
-    const subtotalVal = calculateCartSubtotal();
+  const discountDetails = useMemo(() => {
+    const parseTags = (tagsStr?: string): string[] => {
+      if (!tagsStr) return [];
+      return tagsStr.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+    };
 
     interface CartUnit {
       itemId: number;
@@ -432,7 +586,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       if (qType === 'manual') {
         qualified = activeManualDiscountIds.includes(disc.id);
       } else if (qType === 'order_total') {
-        qualified = subtotalVal >= qValue;
+        qualified = subtotal >= qValue;
       } else if (qType === 'item_quantity') {
         const matchingQty = cartUnits.filter(u => u.tags.includes(discTag)).length;
         qualified = matchingQty >= qValue;
@@ -627,22 +781,20 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       appliedDiscounts: bestOutcome.applied,
       missingRewardDiscounts
     };
-  };
+  }, [cart, discounts, activeManualDiscountIds, subtotal, customDiscountValue, customDiscountType, items]);
+
+  const { discountTotal, appliedDiscounts, missingRewardDiscounts } = discountDetails;
+  const taxableAmount = Math.max(0, subtotal - discountTotal);
 
   const getActiveDiscountName = () => {
-    const { appliedDiscounts } = getDiscountDetails();
     if (appliedDiscounts.length > 0) {
       return appliedDiscounts.map(ad => ad.name).join(', ');
     }
     return null;
   };
 
-  const subtotal = calculateCartSubtotal();
-  const { discountTotal, appliedDiscounts, missingRewardDiscounts } = getDiscountDetails();
-  const taxableAmount = Math.max(0, subtotal - discountTotal);
-
-  const calculateTaxTotal = (subtotalVal: number, discountTotalVal: number) => {
-    const ratio = subtotalVal > 0 ? (discountTotalVal / subtotalVal) : 0;
+  const taxTotal = useMemo(() => {
+    const ratio = subtotal > 0 ? (discountTotal / subtotal) : 0;
     let totalTaxRate = (taxes || []).filter(t => t.scope === 'total').reduce((s, t) => s + t.rate, 0);
     if ((taxes || []).length === 0 && _taxRate > 0) {
       totalTaxRate = _taxRate * 100;
@@ -665,9 +817,8 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
 
       return totalTax + (itemTaxable * (itemRate / 100));
     }, 0);
-  };
+  }, [cart, discountTotal, subtotal, taxes, _taxRate]);
 
-  const taxTotal = calculateTaxTotal(subtotal, discountTotal);
   const finalTotal = taxableAmount + taxTotal;
 
   // Keypad controls for custom discount
@@ -798,7 +949,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
     if (message) {
       text += centerText(message, colWidth);
     }
-    const subheader = orgName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt';
+    const subheader = orgName === 'THC FIREWORKS' ? 'Thousand Hills Church Booth' : 'Sales Receipt';
     text += centerText(subheader, colWidth);
     text += centerText("100% Volunteer Supported", colWidth);
     text += separator;
@@ -956,11 +1107,11 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
       // Success indicators
       triggerConfetti();
       setShowReceiptModal(true);
-      showNotice('Sale Completed Successfully! 🎆', 'success');
+      showNotice('Sale Completed Successfully!', 'success');
 
       if (lowStockItems.length > 0) {
         setTimeout(() => {
-          handleAlert(`⚠️ Low Stock Warning:\n\nThe following items have dropped below the threshold:\n\n${lowStockItems.map(x => `• ${x}`).join('\n')}`, 'Low Stock Warning');
+          handleAlert(`[Warning] Low Stock Warning:\n\nThe following items have dropped below the threshold:\n\n${lowStockItems.map(x => `• ${x}`).join('\n')}`, 'Low Stock Warning');
         }, 500);
       }
 
@@ -983,7 +1134,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
 
     if (missingRewardDiscounts.length > 0) {
       const names = missingRewardDiscounts.map(d => d.name).join('\n• ');
-      const message = `⚠️ Discount Qualifier Met, but Reward Cannot Be Applied:\n\nThe following discounts have met their qualifiers, but the reward items are missing from the cart:\n• ${names}\n\nWould you like to go back to add the reward items, or continue to checkout anyway?`;
+      const message = `[Warning] Discount Qualifier Met, but Reward Cannot Be Applied:\n\nThe following discounts have met their qualifiers, but the reward items are missing from the cart:\n• ${names}\n\nWould you like to go back to add the reward items, or continue to checkout anyway?`;
       if (!await handleConfirm(message, 'Discount Warning')) {
         return;
       }
@@ -1126,14 +1277,39 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
               <p className="text-xs text-custom-muted">Scan fireworks or add manually below</p>
             </div>
           </div>
-          <button
-            id="btn-clear-cart"
-            onClick={async () => { if (cart.length > 0 && await handleConfirm('Clear active cart?', 'Clear Cart')) setCart([]); }}
-            className="text-xs font-semibold px-4 py-2 bg-custom-input hover:bg-custom-primary/20 text-custom-text rounded-lg transition-all border border-custom-border flex items-center gap-1.5"
-            disabled={cart.length === 0}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Clear Cart
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-hold-cart"
+              onClick={() => setShowParkCartModal(true)}
+              className="text-xs font-semibold px-3 py-2 bg-custom-input hover:bg-custom-primary/20 text-custom-text rounded-lg transition-all border border-custom-border flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={cart.length === 0}
+              title="Hold current cart"
+            >
+              <Bookmark className="h-3.5 w-3.5" /> Hold Cart
+            </button>
+
+            <button
+              id="btn-view-parked-carts"
+              onClick={() => setShowParkedCartsModal(true)}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition-all border flex items-center gap-1.5 cursor-pointer ${
+                parkedCarts.length > 0
+                  ? 'bg-custom-primary text-white border-custom-primary shadow-md'
+                  : 'bg-custom-input hover:bg-custom-primary/20 text-custom-text border-custom-border'
+              }`}
+              title="View saved/held carts"
+            >
+              <Bookmark className="h-3.5 w-3.5" /> Parked ({parkedCarts.length})
+            </button>
+
+            <button
+              id="btn-clear-cart"
+              onClick={async () => { if (cart.length > 0 && await handleConfirm('Clear active cart?', 'Clear Cart')) setCart([]); }}
+              className="text-xs font-semibold px-3 py-2 bg-custom-input hover:bg-custom-primary/20 text-custom-text rounded-lg transition-all border border-custom-border flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={cart.length === 0}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Clear
+            </button>
+          </div>
         </div>
 
         {/* Cart Item Rows */}
@@ -1579,7 +1755,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                   {receiptMessage && (
                     <p className="text-[10px] text-zinc-700 font-semibold mt-1 whitespace-pre-wrap">{receiptMessage}</p>
                   )}
-                  <p className="text-[10px] text-zinc-600 mt-1">{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">{organizationName === 'THC FIREWORKS' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                   <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
                   <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
                   <p className="text-[9px] text-left mt-2">Sale #: {lastSaleData.id}</p>
@@ -1642,7 +1818,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                 {receiptMessage && (
                   <p style={{ margin: '3px 0 0 0', fontSize: '10px', color: '#333', whiteSpace: 'pre-wrap' }}>{receiptMessage}</p>
                 )}
-                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
+                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === 'THC FIREWORKS' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                 <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
                 <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>
                 <div style={{ textAlign: 'left', marginTop: '5px', fontSize: '9px' }}>
@@ -1762,14 +1938,46 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                         }
                       }}
                       className={`w-full py-4 text-sm font-black rounded-xl border flex items-center justify-center gap-2 transition-all active:scale-95 shadow ${isGoDaddy && !isPaired
-                          ? 'bg-custom-input border-custom-border text-custom-muted opacity-50 cursor-pointer'
-                          : 'bg-custom-primary hover:bg-custom-primary-hover border-transparent text-white cursor-pointer'
+                        ? 'bg-custom-input border-custom-border text-custom-muted opacity-50 cursor-pointer'
+                        : 'bg-custom-primary hover:bg-custom-primary-hover border-transparent text-white cursor-pointer'
                         }`}
                     >
-                      {method.name === 'Cash' ? '💵' : method.name === 'Card' ? '💳' : '🏷️'} Pay with {method.name}
+                      {method.name.toLowerCase().includes('cash') ? (
+                        <Banknote className="h-4 w-4 text-custom-text" />
+                      ) : method.name.toLowerCase().includes('card') ? (
+                        <CreditCard className="h-4 w-4 text-custom-text" />
+                      ) : isGoDaddy ? (
+                        <MonitorSmartphone className="h-4 w-4 text-custom-text" />
+                      ) : method.name.toLowerCase().includes('check') ? (
+                        <Landmark className="h-4 w-4 text-custom-text" />
+                      ) : method.name.toLowerCase().includes('venmo') ||
+                        method.name.toLowerCase().includes('cashapp') ||
+                        method.name.toLowerCase().includes('cash app') ||
+                        method.name.toLowerCase().includes('zelle') ||
+                        method.name.toLowerCase().includes('paypal') ||
+                        method.name.toLowerCase().includes('pay pal') ||
+                        method.name.toLowerCase().includes('apple pay') ||
+                        method.name.toLowerCase().includes('google pay') ||
+                        method.name.toLowerCase().includes('mobile') ? (
+                        <Smartphone className="h-4 w-4 text-custom-text" />
+                      ) : (
+                        <Tag className="h-4 w-4 text-custom-text" />
+                      )} Pay with {method.name}
                     </button>
                   );
                 })}
+
+              <button
+                type="button"
+                id="btn-split-payment-modal"
+                onClick={() => {
+                  setShowPaymentMethodSelector(false);
+                  setShowSplitPaymentModal(true);
+                }}
+                className="w-full py-4 text-sm font-black rounded-xl border border-custom-primary/40 bg-custom-primary/10 hover:bg-custom-primary/20 text-custom-text flex items-center justify-center gap-2 transition-all active:scale-95 shadow cursor-pointer mt-2"
+              >
+                <CreditCard className="h-4 w-4 text-custom-accent" /> Split Payment (Multiple Tenders)
+              </button>
             </div>
 
             <div className="bg-custom-header border-t border-custom-border px-6 py-3 flex justify-end">
@@ -1790,7 +1998,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
           <div className="w-full max-w-sm bg-custom-card border border-custom-border rounded-2xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-200 p-6 space-y-6">
             <div className="flex justify-between items-center pb-3 border-b border-custom-border">
               <h3 className="font-bold text-custom-text text-base flex items-center gap-2">
-                💵 Cash Calculator
+                <Calculator className="h-5 w-5 text-custom-accent" /> Cash Calculator
               </h3>
               <button
                 onClick={() => {
@@ -1920,7 +2128,7 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
                   <div className="absolute font-mono text-[10px] text-custom-accent">POS</div>
                 </div>
               ) : (
-                <div className="text-red-500 text-3xl">⚠️</div>
+                <AlertTriangle className="h-12 w-12 text-red-500 animate-pulse" />
               )}
 
               <p className="text-sm font-semibold text-custom-text text-center leading-relaxed">
@@ -1971,6 +2179,84 @@ export const RegisterView: React.FC<RegisterViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* PARK CART MODAL */}
+      {showParkCartModal && (
+        <ParkCartModal
+          theme={theme || {
+            id: 'thc-dark',
+            name: 'THC Dark',
+            bg: '#0f172a',
+            card: '#1e293b',
+            text: '#f8fafc',
+            muted: '#94a3b8',
+            primary: '#10b981',
+            primaryHover: '#059669',
+            accent: '#38bdf8',
+            border: '#334155',
+            header: '#1e293b',
+            input: '#0f172a'
+          }}
+          itemCount={cart.reduce((s, i) => s + i.quantity, 0)}
+          subtotal={subtotal}
+          onConfirm={handleParkCartConfirm}
+          onClose={() => setShowParkCartModal(false)}
+        />
+      )}
+
+      {/* PARKED CARTS LIST MODAL */}
+      {showParkedCartsModal && (
+        <ParkedCartsModal
+          theme={theme || {
+            id: 'thc-dark',
+            name: 'THC Dark',
+            bg: '#0f172a',
+            card: '#1e293b',
+            text: '#f8fafc',
+            muted: '#94a3b8',
+            primary: '#10b981',
+            primaryHover: '#059669',
+            accent: '#38bdf8',
+            border: '#334155',
+            header: '#1e293b',
+            input: '#0f172a'
+          }}
+          parkedCarts={parkedCarts}
+          catalogItems={items}
+          activeCartCount={cart.length}
+          onRecall={handleRecallParkedCart}
+          onDelete={handleDeleteParkedCart}
+          onClose={() => setShowParkedCartsModal(false)}
+        />
+      )}
+
+      {/* SPLIT PAYMENT MODAL */}
+      {showSplitPaymentModal && (
+        <SplitPaymentModal
+          theme={theme || {
+            id: 'thc-dark',
+            name: 'THC Dark',
+            bg: '#0f172a',
+            card: '#1e293b',
+            text: '#f8fafc',
+            muted: '#94a3b8',
+            primary: '#10b981',
+            primaryHover: '#059669',
+            accent: '#38bdf8',
+            border: '#334155',
+            header: '#1e293b',
+            input: '#0f172a'
+          }}
+          orderSubtotal={subtotal}
+          orderTaxTotal={taxTotal}
+          orderDiscountTotal={discountTotal}
+          paymentMethods={paymentMethods}
+          godaddyIp={godaddyTerminalIp}
+          godaddyIsPaired={godaddyPairingStatus === 'paired'}
+          onCompleteSale={handleCompleteSplitSale}
+          onClose={() => setShowSplitPaymentModal(false)}
+        />
       )}
 
     </div>

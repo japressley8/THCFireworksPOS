@@ -2,6 +2,28 @@
 
 All notable changes to the THC Fireworks POS system will be documented in this file.
 
+## [27.2.0] - 2026-07-21
+
+### Added
+- **Parked Carts System**:
+  - Save active customer sales carts with optional reference names or order notes.
+  - View, resume, or dismiss parked carts directly from a dedicated modal on the Sales Register.
+  - Retains all cart line items, pricing, discounts, and tax states seamlessly.
+- **Split Payment Method Support**:
+  - Split checkout totals across multiple tender types (Cash, Card, GoDaddy Terminal Flex, Custom methods).
+  - Real-time balance calculations with validation ensuring full payment before completing transactions.
+  - Full breakdown recorded in sales ledger history and formatted on receipt printouts.
+- **Database Self-Healing & Recovery Advisory**:
+  - Enhanced local AppData backup recovery process with an automated ui confirmation banner when restoring database files.
+- **Developer Suite & Telemetry Enhancements**:
+  - Extended Developer Console with interactive seed controls, date simulation, GoDaddy terminal mocking, and trace filters.
+  - Added full test coverage for database recovery, parked carts, playback window, and split payment workflows.
+
+### Changed
+- **Easter Egg Module Refactoring & Stability**:
+  - Modularized easter egg components and tests under `src/components/eastereggs/`.
+  - Improved React Strict Mode state preservation for Solitaire, Trigon, and Hex Command games.
+
 ## [27.1.9] - 2026-07-15
 
 ### Changed

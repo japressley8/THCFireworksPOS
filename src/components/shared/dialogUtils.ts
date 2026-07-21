@@ -3,9 +3,16 @@ export const defaultConfirm = async (
   _title?: string,
   _options?: { confirmText?: string; cancelText?: string; isDanger?: boolean }
 ): Promise<boolean> => {
-  return window.confirm(message);
+  if (typeof window !== 'undefined' && window.confirm) {
+    return window.confirm(message);
+  }
+  return true;
 };
 
 export const defaultAlert = async (message: string, _title?: string): Promise<void> => {
-  window.alert(message);
+  if (typeof window !== 'undefined' && window.alert) {
+    window.alert(message);
+  } else {
+    console.log(message);
+  }
 };

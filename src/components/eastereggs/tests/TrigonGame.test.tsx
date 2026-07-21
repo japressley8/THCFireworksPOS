@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { TrigonGame, rotateCell60, flipCellHorizontal, generateHexagonalBoard } from '../TrigonGame';
+import { TrigonGame, rotateCell60, flipCellHorizontal, generateHexagonalBoard, getCellCentroid, getTriangleVertices } from '../TrigonGame';
 
 // Mock canvas-confetti
 vi.mock('canvas-confetti', () => ({
@@ -115,7 +115,7 @@ describe('TrigonGame Component', () => {
 
     render(<TrigonGame {...defaultProps} cachedState={cachedState} />);
     expect(screen.getByText('Extra Pieces')).toBeInTheDocument();
-    expect(screen.getByText('Place or Eliminated!')).toBeInTheDocument();
+    expect(screen.getByText('Place or Skipped!')).toBeInTheDocument();
   });
 
   it('resets extraPiecesMode on game reset', () => {
@@ -142,6 +142,120 @@ describe('TrigonGame Component', () => {
     fireEvent.click(resetButton);
 
     expect(screen.queryByText('Extra Pieces')).not.toBeInTheDocument();
-    expect(screen.queryByText('Place or Eliminated!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Place or Skipped!')).not.toBeInTheDocument();
+  });
+
+  it('correctly skips blocked players and ends the game when all players have no moves', () => {
+    const boardCells = generateHexagonalBoard(6);
+    const cellKeys = boardCells.map((c) => `${c.q},${c.r},${c.up}`);
+
+    // Calculate corners matching the component
+    const corners: string[] = [];
+    const angles = [0, 60, 120, 180, 240, 300];
+
+    angles.forEach((deg) => {
+      const rad = (deg * Math.PI) / 180;
+      const targetX = 6 * 30 * Math.cos(rad);
+      const targetY = 6 * 30 * Math.sin(rad);
+      let bestCell = '';
+      let minDist = Infinity;
+      cellKeys.forEach((k) => {
+        const [q, r, up] = k.split(',').map(Number);
+        const centroid = getCellCentroid(q, r, up, 20);
+        const dist = Math.pow(centroid.x - targetX, 2) + Math.pow(centroid.y - targetY, 2);
+        if (dist < minDist) {
+          minDist = dist;
+          bestCell = k;
+        }
+      });
+      corners.push(bestCell);
+    });
+
+    const startCell0 = corners[0];
+    const startCell1 = corners[3];
+
+    // Helper to check if two cells share a corner (vertex) but not an edge
+    const shareCornerOnly = (k1: string, k2: string): boolean => {
+      const [q1, r1, up1] = k1.split(',').map(Number);
+      const [q2, r2, up2] = k2.split(',').map(Number);
+      const v1 = getTriangleVertices(q1, r1, up1);
+      const v2 = getTriangleVertices(q2, r2, up2);
+      const sharedCount = v1.filter((vk) => v2.includes(vk)).length;
+      return sharedCount === 1; // exactly 1 shared vertex means corner sharing only
+    };
+
+    // Find an empty cell that has up === 1 (matching the piece anchor up parity),
+    // doesn't conflict with the start corners, and shares only a corner with Player 0's start cell
+    const emptyCellKey = cellKeys.find((k) => 
+      k.endsWith(',1') && 
+      k !== startCell0 && 
+      k !== startCell1 && 
+      k !== '-6,0,1' &&
+      shareCornerOnly(k, startCell0)
+    )!;
+
+    // Player 0 owns their start cell, and also owns Player 1's starting cells (blocking Player 1 completely)
+    const boardOwners: Record<string, number> = {
+      [startCell0]: 0,
+      [startCell1]: 0,
+      '-6,0,1': 0,
+    };
+
+    const cachedState = {
+      playerCount: 2,
+      boardSize: 6,
+      isGameStarted: true,
+      currentPlayer: 0,
+      boardOwners,
+      playerInventories: {
+        0: ['shape_1_1'],
+        1: ['shape_1_1'],
+      },
+      skippedPlayers: [],
+      winner: null,
+    };
+
+    // Calculate centroid of the empty cell to point the mock mouse click
+    const [eq, er, eup] = emptyCellKey.split(',').map(Number);
+    const targetCentroid = getCellCentroid(eq, er, eup, 26);
+
+    // Mock SVGSVGElement properties
+    SVGSVGElement.prototype.getScreenCTM = () => ({
+      inverse: () => ({}),
+      a: 1, b: 0, c: 0, d: 1, e: 0, f: 0
+    } as any);
+    SVGSVGElement.prototype.createSVGPoint = () => ({
+      x: targetCentroid.x,
+      y: targetCentroid.y,
+      matrixTransform: function(_matrix: any) {
+        return { x: this.x, y: this.y };
+      }
+    } as any);
+
+    render(<TrigonGame {...defaultProps} cachedState={cachedState} />);
+
+    // Click on Player 0's shape in the sidebar to hold it
+    const shapesContainer = screen.getByText(/1 shapes/i).parentElement?.nextSibling;
+    const shapeItem = shapesContainer?.firstChild;
+    expect(shapeItem).toBeInTheDocument();
+    
+    act(() => {
+      fireEvent.click(shapeItem!);
+    });
+
+    // Click on the board (the SVG element) to place the shape
+    const svgBoard = document.querySelector('svg.w-full.h-full');
+    expect(svgBoard).toBeInTheDocument();
+    
+    act(() => {
+      fireEvent.click(svgBoard!, {
+        clientX: targetCentroid.x,
+        clientY: targetCentroid.y,
+      });
+    });
+
+    // Player 1 has no moves, and Player 0 is out of pieces, so game over should trigger
+    // Player 0 should be the winner because they placed all cells
+    expect(screen.getByText(/wins with/i)).toBeInTheDocument();
   });
 });

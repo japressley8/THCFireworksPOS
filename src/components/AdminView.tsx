@@ -52,11 +52,16 @@ import {
   SquarePen,
   MonitorSmartphone,
   Wallet,
-  CheckSquare,
   ShoppingCart,
-  Sparkles
+  Sparkles,
+  CreditCard,
+  Lightbulb,
+  Smartphone,
+  Banknote,
+  Landmark,
+  Calculator
 } from 'lucide-react';
-import { Item, Discount, Sale, Theme, YearSummary, DaySummary, Tax, SaleItemDetail, PaymentMethod } from '../types';
+import { Item, Discount, Sale, Theme, YearSummary, DaySummary, Tax, SaleItemDetail, PaymentMethod, DbStatus } from '../types';
 import { getVersion } from '@tauri-apps/api/app';
 import { getTheme } from './shared/colorUtils';
 import { defaultConfirm, defaultAlert } from './shared/dialogUtils';
@@ -82,7 +87,11 @@ interface AdminViewProps {
   customAlert?: (message: string, title?: string) => Promise<boolean>;
   subTab?: 'inventory' | 'discounts' | 'taxes' | 'sales' | 'analytics' | 'data' | 'settings' | 'devices' | 'payment_methods';
   onSubTabChange?: (tab: 'inventory' | 'discounts' | 'taxes' | 'sales' | 'analytics' | 'data' | 'settings' | 'devices' | 'payment_methods') => void;
-}const generateCodeVerifier = (): string => {
+  dbStatus: DbStatus | null;
+  onRefreshDbStatus: () => Promise<DbStatus | null>;
+}
+
+const generateCodeVerifier = (): string => {
   const array = new Uint8Array(64);
   window.crypto.getRandomValues(array);
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -123,7 +132,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
   customConfirm,
   customAlert,
   subTab: controlledSubTab,
-  onSubTabChange
+  onSubTabChange,
+  dbStatus,
+  onRefreshDbStatus
 }) => {
   const handleConfirm = async (message: string, title?: string, isDanger?: boolean): Promise<boolean> => {
     return (customConfirm || defaultConfirm)(message, title, { isDanger });
@@ -326,7 +337,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Sizing & Metric states
   const [yearlyChartMetric, setYearlyChartMetric] = useState<'revenue' | 'profit'>('revenue');
   const [showBulkOptions, setShowBulkOptions] = useState<boolean>(false);
-  const [organizationName, setOrganizationName] = useState<string>('🎆 THC FIREWORKS 🎆');
+  const [organizationName, setOrganizationName] = useState<string>('THC FIREWORKS');
   const [receiptMessage, setReceiptMessage] = useState<string>('');
 
   // Responsive panel collapse states
@@ -1252,6 +1263,54 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  const handleChangeDbLocation = async () => {
+    try {
+      const folder = await invoke<string | null>('open_folder_picker');
+      if (!folder) return;
+
+      if (await handleConfirm(
+        `Are you sure you want to copy your database to the new location and use it?\n\nNew folder: ${folder}\n\nThis will copy the current database file to the selected folder, and the application will load data from there from now on.`,
+        "Change Database Storage Location"
+      )) {
+        await invoke('set_custom_db_path', { newFolder: folder });
+        triggerNotice("Database successfully moved to custom location.", "success");
+        await onRefreshDbStatus();
+
+        // Reload all data from the new DB
+        loadInventory();
+        loadDiscounts();
+        loadSales();
+        loadTaxes();
+        loadTableRowCounts();
+      }
+    } catch (err) {
+      triggerNotice("Failed to change DB location: " + err, "error");
+    }
+  };
+
+  const handleResetDbLocation = async () => {
+    if (await handleConfirm(
+      "Are you sure you want to revert to the default database location?\n\nThe default database file located in the application directory will be loaded. Any modifications in the custom location will not be automatically copied back.",
+      "Revert to Default Storage Location",
+      true
+    )) {
+      try {
+        await invoke('clear_custom_db_path');
+        triggerNotice("Database path reset to default location.", "success");
+        await onRefreshDbStatus();
+
+        // Reload all data
+        loadInventory();
+        loadDiscounts();
+        loadSales();
+        loadTaxes();
+        loadTableRowCounts();
+      } catch (err) {
+        triggerNotice("Failed to reset DB location: " + err, "error");
+      }
+    }
+  };
+
 
   // Initialize collapse states based on screen size on mount
   useEffect(() => {
@@ -1727,7 +1786,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (message) {
       text += centerText(message, colWidth);
     }
-    const subheader = orgName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt';
+    const subheader = orgName === 'THC FIREWORKS' ? 'Thousand Hills Church Booth' : 'Sales Receipt';
     text += centerText(subheader, colWidth);
     text += centerText("100% Volunteer Supported", colWidth);
     text += separator;
@@ -1997,7 +2056,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         id: method.id,
         enabled: enabled ? 1 : 0,
         feePercentage: method.fee_percentage,
-        feeFlat: method.fee_flat
+        feeFlat: method.fee_flat,
+        feeMode: method.fee_mode || 'deducted'
       });
       triggerNotice(`${method.name} ${enabled ? 'enabled' : 'disabled'}.`, 'success');
       loadPaymentMethods();
@@ -2006,16 +2066,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
-  const handleUpdatePaymentFee = async (method: PaymentMethod, percentageStr: string, flatStr: string) => {
+  const handleUpdatePaymentFee = async (method: PaymentMethod, percentageStr: string, flatStr: string, feeModeStr?: string) => {
     const feePercentage = parseFloat(percentageStr) || 0.0;
     const feeFlat = parseFloat(flatStr) || 0.0;
+    const feeMode = feeModeStr || method.fee_mode || 'deducted';
 
     try {
       await invoke('save_payment_method', {
         id: method.id,
         enabled: method.enabled,
         feePercentage,
-        feeFlat
+        feeFlat,
+        feeMode
       });
       triggerNotice(`Updated fees for ${method.name}.`, 'success');
       loadPaymentMethods();
@@ -2047,7 +2109,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         name: newPaymentName.trim(),
         enabled: 1,
         feePercentage,
-        feeFlat
+        feeFlat,
+        feeMode: 'deducted'
       });
       triggerNotice(`Added payment method ${newPaymentName.trim()}`, 'success');
       setNewPaymentName('');
@@ -2785,12 +2848,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       // Update each item in the inventory accordingly if tag is specified
       if (discDiscountTag.trim()) {
         const targetTag = discDiscountTag.trim().toLowerCase();
-        
+
         for (const item of items) {
           const itemTags = parseTags(item.discount_tags);
           const hasTag = itemTags.includes(targetTag);
           const shouldHaveTag = taggedItemIds.includes(item.id);
-          
+
           if (hasTag !== shouldHaveTag) {
             let newTags = [...itemTags];
             if (shouldHaveTag) {
@@ -2799,7 +2862,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               newTags = newTags.filter(t => t !== targetTag);
             }
             const tagsStr = newTags.join(',');
-            
+
             await invoke('update_item_details', {
               id: item.id,
               barcode: item.barcode,
@@ -3759,7 +3822,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                   <div className="space-y-3 p-3 bg-custom-input/20 border border-custom-border rounded-xl">
                     <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted">Reward Details</label>
-                    
+
                     <div>
                       <label className="block text-[10px] font-bold uppercase text-custom-muted mb-1">Reward Action</label>
                       <select
@@ -4220,11 +4283,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             setNewTaxRate(tax.rate.toString());
                             setNewTaxScope(tax.scope);
                           }}
-                          className={`p-3 border rounded-xl transition-all shrink-0 ${
-                            editingTaxId === tax.id
-                              ? 'bg-custom-primary/20 border-custom-primary text-custom-accent font-bold shadow'
-                              : 'bg-custom-input border-custom-border text-custom-muted hover:text-custom-text hover:bg-custom-primary/10'
-                          }`}
+                          className={`p-3 border rounded-xl transition-all shrink-0 ${editingTaxId === tax.id
+                            ? 'bg-custom-primary/20 border-custom-primary text-custom-accent font-bold shadow'
+                            : 'bg-custom-input border-custom-border text-custom-muted hover:text-custom-text hover:bg-custom-primary/10'
+                            }`}
                           title="Edit Preset"
                         >
                           <SquarePen className="h-4.5 w-4.5" />
@@ -4385,43 +4447,52 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               ${sale.final_total.toFixed(2)}
                             </td>
                             <td className="py-4 px-6 font-semibold">
-                              <div className="flex flex-col">
-                                <select
-                                  disabled={isRefunded}
-                                  value={sale.payment_method || 'Cash'}
-                                  onChange={async (e) => {
-                                    const newMethodName = e.target.value;
-                                    const method = paymentMethods.find(m => m.name === newMethodName);
-                                    const feeRatePercentage = method ? method.fee_percentage : 0;
-                                    const feeFlat = method ? method.fee_flat : 0;
-                                    const newFee = (sale.final_total * feeRatePercentage / 100) + feeFlat;
-                                    try {
-                                      await invoke('update_sale_payment', {
-                                        saleId: sale.id,
-                                        paymentMethod: newMethodName,
-                                        transactionFee: newFee
-                                      });
-                                      triggerNotice('Payment method updated successfully!', 'success');
-                                      loadSales();
-                                      loadYearlySummary();
-                                    } catch (err) {
-                                      triggerNotice('Failed to update payment method: ' + err, 'error');
-                                    }
-                                  }}
-                                  className="bg-custom-input border border-custom-border text-custom-text text-xs rounded px-1.5 py-0.5 focus:outline-none focus:border-custom-primary cursor-pointer font-bold disabled:opacity-50"
-                                >
-                                  {(paymentMethods || [])
-                                    .filter(m => m && (m.status === 'active' || m.name === sale.payment_method))
-                                    .map(m => (
-                                      <option key={m.id} value={m.name}>{m.name}</option>
-                                    ))}
-                                </select>
-                                {sale.godaddy_transaction_id && (
-                                  <span className="text-[9px] text-custom-muted font-mono mt-1">
-                                    ID: {sale.godaddy_transaction_id}
+                              {sale.payment_method === 'Split' || (sale.payments && sale.payments.length > 1) ? (
+                                <div className="flex flex-col gap-1">
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-custom-accent bg-custom-accent/10 border border-custom-accent/30 px-2.5 py-1 rounded-lg w-fit">
+                                    <CreditCard className="h-3.5 w-3.5" /> Split ({sale.payments?.length || 2} Tenders)
                                   </span>
-                                )}
-                              </div>
+                                  <span className="text-[10px] text-custom-muted font-mono">Expand row to view tenders</span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col">
+                                  <select
+                                    disabled={isRefunded}
+                                    value={sale.payment_method || 'Cash'}
+                                    onChange={async (e) => {
+                                      const newMethodName = e.target.value;
+                                      const method = paymentMethods.find(m => m.name === newMethodName);
+                                      const feeRatePercentage = method ? method.fee_percentage : 0;
+                                      const feeFlat = method ? method.fee_flat : 0;
+                                      const newFee = (sale.final_total * feeRatePercentage / 100) + feeFlat;
+                                      try {
+                                        await invoke('update_sale_payment', {
+                                          saleId: sale.id,
+                                          paymentMethod: newMethodName,
+                                          transactionFee: newFee
+                                        });
+                                        triggerNotice('Payment method updated successfully!', 'success');
+                                        loadSales();
+                                        loadYearlySummary();
+                                      } catch (err) {
+                                        triggerNotice('Failed to update payment method: ' + err, 'error');
+                                      }
+                                    }}
+                                    className="bg-custom-input border border-custom-border text-custom-text text-xs rounded px-1.5 py-0.5 focus:outline-none focus:border-custom-primary cursor-pointer font-bold disabled:opacity-50"
+                                  >
+                                    {(paymentMethods || [])
+                                      .filter(m => m && (m.status === 'active' || m.name === sale.payment_method))
+                                      .map(m => (
+                                        <option key={m.id} value={m.name}>{m.name}</option>
+                                      ))}
+                                  </select>
+                                  {sale.godaddy_transaction_id && (
+                                    <span className="text-[9px] text-custom-muted font-mono mt-1">
+                                      ID: {sale.godaddy_transaction_id}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="py-4 px-6 text-right font-mono text-red-400">
                               -${(sale.transaction_fee || 0).toFixed(2)}
@@ -4454,47 +4525,129 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </td>
                           </tr>
 
-                          {/* Expansion drawer showing individual sale items */}
+                          {/* Expansion drawer showing individual payment methods and sale items */}
                           {isExpanded && (
                             <tr>
-                              <td colSpan={9} className="bg-custom-input/40 px-8 py-4 border-b border-custom-border">
-                                <div className="border border-custom-border rounded-xl overflow-hidden max-w-2xl shadow-inner">
-                                  <div className="bg-custom-header px-4 py-2 border-b border-custom-border text-xs font-bold text-custom-muted uppercase tracking-wider flex items-center justify-between">
-                                    <span>Sold Items Receipt Detail</span>
-                                    <button
-                                      id={`btn-ledger-print-receipt-${sale.id}`}
-                                      onClick={() => {
-                                        setSelectedReceiptSale(sale);
-                                        setShowReceiptModal(true);
-                                      }}
-                                      className="px-2.5 py-1 bg-custom-primary hover:bg-custom-primary-hover text-white text-[10px] font-extrabold rounded flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
-                                    >
-                                      <Printer className="h-3 w-3" /> View & Print Receipt
-                                    </button>
-                                  </div>
-                                  <table className="w-full text-left text-xs font-semibold">
-                                    <thead>
-                                      <tr className="bg-custom-input text-custom-muted border-b border-custom-border uppercase text-[10px]">
-                                        <th className="py-2.5 px-4">Product Name</th>
-                                        <th className="py-2.5 px-4 text-center">Quantity</th>
-                                        <th className="py-2.5 px-4 text-right">Price at Sale</th>
-                                        <th className="py-2.5 px-4 text-right">Subtotal</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-custom-border text-custom-text">
-                                      {sale.items && sale.items.map(sItem => (
-                                        <tr key={sItem.id} className="hover:bg-custom-primary/10">
-                                          <td className="py-2 px-4">
-                                            <span className="block font-bold text-custom-text">{sItem.item_name || `Unknown ID: ${sItem.item_id}`}</span>
-                                            {sItem.item_barcode && <span className="block text-[9px] text-custom-muted font-mono mt-0.5">{sItem.item_barcode}</span>}
-                                          </td>
-                                          <td className="py-2 px-4 text-center font-mono text-custom-text font-bold">{sItem.quantity}</td>
-                                          <td className="py-2 px-4 text-right font-mono">${sItem.price_at_sale.toFixed(2)}</td>
-                                          <td className="py-2 px-4 text-right font-mono text-custom-text">${(sItem.price_at_sale * sItem.quantity).toFixed(2)}</td>
+                              <td colSpan={9} className="bg-custom-input/40 px-8 py-4 border-b border-custom-border space-y-4">
+                                <div className="flex flex-col xl:flex-row gap-6 items-start">
+                                  {/* Split Payment / Tender breakdown table if payments exist */}
+                                  {sale.payments && sale.payments.length > 0 && (
+                                    <div className="border border-custom-border rounded-xl overflow-hidden shadow-inner bg-custom-card/30 flex-1 w-full">
+                                      <div className="bg-custom-header px-4 py-2 border-b border-custom-border text-xs font-bold text-custom-muted uppercase tracking-wider flex items-center gap-2">
+                                        <CreditCard className="h-3.5 w-3.5 text-custom-accent" />
+                                        <span>Payment Tender Breakdown ({sale.payments.length} Tenders)</span>
+                                      </div>
+                                      <table className="w-full text-left text-xs font-semibold">
+                                        <thead>
+                                          <tr className="bg-custom-input text-custom-muted border-b border-custom-border uppercase text-[10px]">
+                                            <th className="py-2.5 px-4">Payment Method</th>
+                                            <th className="py-2.5 px-4 text-right">Amount Tendered</th>
+                                            <th className="py-2.5 px-4 text-right">Fee / Surcharge</th>
+                                            <th className="py-2.5 px-4 text-left">Gateway / Tx ID</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-custom-border text-custom-text">
+                                          {sale.payments.map((p, pIdx) => (
+                                            <tr key={p.id || pIdx} className="hover:bg-custom-primary/10">
+                                              <td className="py-2.5 px-4 font-bold flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-full bg-custom-accent shrink-0" />
+                                                <select
+                                                  disabled={isRefunded}
+                                                  value={p.payment_method_name}
+                                                  onChange={async (e) => {
+                                                    const newMethodName = e.target.value;
+                                                    const targetMethod = paymentMethods.find(m => m.name === newMethodName);
+                                                    const feeRate = targetMethod ? targetMethod.fee_percentage : 0;
+                                                    const feeFlat = targetMethod ? targetMethod.fee_flat : 0;
+                                                    const newFeeMode = targetMethod?.fee_mode || 'deducted';
+                                                    const calculatedFee = (p.amount_tendered * feeRate / 100) + feeFlat;
+
+                                                    try {
+                                                      await invoke('update_split_sale_payment_item', {
+                                                        paymentId: p.id,
+                                                        saleId: sale.id,
+                                                        paymentMethodName: newMethodName,
+                                                        paymentMethodId: targetMethod?.id || null,
+                                                        feeAmount: calculatedFee,
+                                                        feeMode: newFeeMode,
+                                                      });
+                                                      triggerNotice(`Updated split tender to ${newMethodName}!`, 'success');
+                                                      loadSales();
+                                                      loadYearlySummary();
+                                                    } catch (err) {
+                                                      triggerNotice('Failed to update split payment method: ' + err, 'error');
+                                                    }
+                                                  }}
+                                                  className="bg-custom-input border border-custom-border text-custom-text text-xs rounded px-2 py-1 focus:outline-none focus:border-custom-primary cursor-pointer font-bold disabled:opacity-50"
+                                                >
+                                                  {(paymentMethods || [])
+                                                    .filter(m => m && (m.status === 'active' || m.name === p.payment_method_name))
+                                                    .map(m => (
+                                                      <option key={m.id} value={m.name}>{m.name}</option>
+                                                    ))}
+                                                </select>
+                                              </td>
+                                              <td className="py-2.5 px-4 text-right font-mono text-emerald-400 font-bold">
+                                                ${p.amount_tendered.toFixed(2)}
+                                              </td>
+                                              <td className="py-2.5 px-4 text-right font-mono">
+                                                {p.fee_amount > 0 ? (
+                                                  <span className={p.fee_mode === 'on_top' ? 'text-amber-400 font-bold' : 'text-red-400'}>
+                                                    {p.fee_mode === 'on_top' ? `+$${p.fee_amount.toFixed(2)} (Surcharge)` : `-$${p.fee_amount.toFixed(2)} (Fee)`}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-custom-muted">$0.00</span>
+                                                )}
+                                              </td>
+                                              <td className="py-2.5 px-4 font-mono text-[10px] text-custom-muted">
+                                                {p.godaddy_trans_id || '—'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+
+                                  {/* Sold Items table */}
+                                  <div className="border border-custom-border rounded-xl overflow-hidden shadow-inner flex-1 w-full">
+                                    <div className="bg-custom-header px-4 py-2 border-b border-custom-border text-xs font-bold text-custom-muted uppercase tracking-wider flex items-center justify-between">
+                                      <span>Sold Items Receipt Detail</span>
+                                      <button
+                                        id={`btn-ledger-print-receipt-${sale.id}`}
+                                        onClick={() => {
+                                          setSelectedReceiptSale(sale);
+                                          setShowReceiptModal(true);
+                                        }}
+                                        className="px-2.5 py-1 bg-custom-primary hover:bg-custom-primary-hover text-white text-[10px] font-extrabold rounded flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                                      >
+                                        <Printer className="h-3 w-3" /> View & Print Receipt
+                                      </button>
+                                    </div>
+                                    <table className="w-full text-left text-xs font-semibold">
+                                      <thead>
+                                        <tr className="bg-custom-input text-custom-muted border-b border-custom-border uppercase text-[10px]">
+                                          <th className="py-2.5 px-4">Product Name</th>
+                                          <th className="py-2.5 px-4 text-center">Quantity</th>
+                                          <th className="py-2.5 px-4 text-right">Price at Sale</th>
+                                          <th className="py-2.5 px-4 text-right">Subtotal</th>
                                         </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                      </thead>
+                                      <tbody className="divide-y divide-custom-border text-custom-text">
+                                        {sale.items && sale.items.map(sItem => (
+                                          <tr key={sItem.id} className="hover:bg-custom-primary/10">
+                                            <td className="py-2 px-4">
+                                              <span className="block font-bold text-custom-text">{sItem.item_name || `Unknown ID: ${sItem.item_id}`}</span>
+                                              {sItem.item_barcode && <span className="block text-[9px] text-custom-muted font-mono mt-0.5">{sItem.item_barcode}</span>}
+                                            </td>
+                                            <td className="py-2 px-4 text-center font-mono text-custom-text font-bold">{sItem.quantity}</td>
+                                            <td className="py-2 px-4 text-right font-mono">${sItem.price_at_sale.toFixed(2)}</td>
+                                            <td className="py-2 px-4 text-right font-mono text-custom-text">${(sItem.price_at_sale * sItem.quantity).toFixed(2)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -4582,22 +4735,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setIsRestockInventory(true)}
-                            className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all ${
-                              isRestockInventory
-                                ? 'bg-custom-primary border-custom-primary text-white'
-                                : 'bg-custom-input border-custom-border text-custom-muted hover:text-custom-text'
-                            }`}
+                            className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all ${isRestockInventory
+                              ? 'bg-custom-primary border-custom-primary text-white'
+                              : 'bg-custom-input border-custom-border text-custom-muted hover:text-custom-text'
+                              }`}
                           >
                             Return &amp; Restock
                           </button>
                           <button
                             type="button"
                             onClick={() => setIsRestockInventory(false)}
-                            className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all ${
-                              !isRestockInventory
-                                ? 'bg-custom-primary border-custom-primary text-white'
-                                : 'bg-custom-input border-custom-border text-custom-muted hover:text-custom-text'
-                            }`}
+                            className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all ${!isRestockInventory
+                              ? 'bg-custom-primary border-custom-primary text-white'
+                              : 'bg-custom-input border-custom-border text-custom-muted hover:text-custom-text'
+                              }`}
                           >
                             Refund (No Restock)
                           </button>
@@ -4680,7 +4831,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
                   <div className="relative w-full max-w-2xl mx-4 bg-custom-card border border-custom-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
                     <div className="absolute top-0 left-0 w-full h-[3px] bg-custom-primary" />
-                    
+
                     <div className="bg-custom-header px-6 py-4 flex items-center justify-between border-b border-custom-border mt-1 shrink-0">
                       <h3 className="text-base font-bold text-custom-text flex items-center gap-2">
                         <ShoppingCart className="h-5 w-5 text-custom-primary" /> Log Manual Sale
@@ -4710,7 +4861,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               ))}
                             </select>
                           </div>
-                          
+
                           <div className="flex flex-col gap-1">
                             <label className="text-[10px] text-custom-muted font-bold uppercase">Quantity</label>
                             <input
@@ -4807,7 +4958,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               ))}
                             </select>
                           </div>
-                          
+
                           <div className="flex flex-col gap-1">
                             <label className="text-[10px] text-custom-muted font-bold uppercase tracking-wider">Apply Sales Tax</label>
                             <select
@@ -5579,6 +5730,49 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                   {/* Right Card: Backup Status Sync */}
                   <div className="space-y-6 flex flex-col justify-between">
+                    {/* Database Storage Location */}
+                    <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg bg-custom-card/50 flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <h3 className="text-base font-bold text-custom-text flex items-center gap-2 border-b border-custom-border pb-3">
+                          <FolderOpen className="h-4.5 w-4.5 text-custom-accent" /> Database File Location
+                        </h3>
+                        <p className="text-xs text-custom-muted leading-relaxed">
+                          Configure a custom storage location (e.g., an external USB drive) to ensure local-first database portability.
+                        </p>
+
+                        <div className="p-3 bg-custom-input/20 border border-custom-border/20 rounded-xl space-y-2 select-text selection:bg-custom-primary/30">
+                          <div className="flex justify-between text-[10px] font-black uppercase text-custom-muted tracking-wider">
+                            <span>Current DB Path</span>
+                            <span className={dbStatus?.custom_db_path ? "text-custom-accent font-bold" : "text-custom-primary font-bold"}>
+                              {dbStatus?.custom_db_path ? "Custom Location" : "Default Folder"}
+                            </span>
+                          </div>
+                          <p className="text-xs font-mono break-all text-custom-text bg-black/20 p-2 rounded border border-custom-border/10">
+                            {dbStatus?.resolved_db_path || 'Loading...'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2 mt-4 select-none">
+                        <button
+                          type="button"
+                          onClick={handleChangeDbLocation}
+                          className="flex-1 py-2 bg-custom-primary/10 hover:bg-custom-primary/20 border border-custom-primary/20 text-custom-primary text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <FolderOpen className="h-3.5 w-3.5" /> Change Location...
+                        </button>
+                        {dbStatus?.custom_db_path && (
+                          <button
+                            type="button"
+                            onClick={handleResetDbLocation}
+                            className="py-2 px-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-500 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Revert
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Local automatic backup */}
                     <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg bg-custom-card/50 flex flex-col justify-between">
                       <div className="space-y-4">
@@ -6185,20 +6379,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <div className="flex items-center gap-2">
                     <MonitorSmartphone className="h-4 w-4 text-custom-accent" /> GoDaddy Terminal Integration
                     {godaddyPairingStatus === 'paired' && (
-                      <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 ${
-                        godaddyConnected === true
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : godaddyConnected === false
+                      <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 ${godaddyConnected === true
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : godaddyConnected === false
                           ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                           : 'bg-custom-input/60 text-custom-muted border border-custom-border/40'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          godaddyConnected === true
-                            ? 'bg-emerald-400 animate-pulse'
-                            : godaddyConnected === false
+                        }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${godaddyConnected === true
+                          ? 'bg-emerald-400 animate-pulse'
+                          : godaddyConnected === false
                             ? 'bg-red-400'
                             : 'bg-custom-muted'
-                        }`} />
+                          }`} />
                         {godaddyConnected === true ? 'Online' : godaddyConnected === false ? 'Offline' : 'Checking...'}
                       </span>
                     )}
@@ -6212,7 +6404,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                 </h3>
 
-                 <div className="space-y-4">
+                <div className="space-y-4">
                   <div className="space-y-4 pt-1 transition-all">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-custom-muted mb-1.5">
@@ -6467,7 +6659,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           className={`py-1.5 border rounded-lg text-xs font-bold transition-all ${receiptPaperWidth === '58mm'
                             ? 'border-custom-primary bg-custom-primary/10 text-custom-primary font-extrabold shadow'
                             : 'border-custom-border/40 bg-custom-input/20 text-custom-muted hover:text-custom-text'
-                          }`}
+                            }`}
                         >
                           58mm Width
                         </button>
@@ -6477,7 +6669,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           className={`py-1.5 border rounded-lg text-xs font-bold transition-all ${receiptPaperWidth === '80mm'
                             ? 'border-custom-primary bg-custom-primary/10 text-custom-primary font-extrabold shadow'
                             : 'border-custom-border/40 bg-custom-input/20 text-custom-muted hover:text-custom-text'
-                          }`}
+                            }`}
                         >
                           80mm Width
                         </button>
@@ -6569,7 +6761,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="glass-panel border-custom-border rounded-2xl p-5 shadow-lg flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-black text-custom-text flex items-center gap-2">
-                    <CheckSquare className="h-4.5 w-4.5 text-custom-accent" /> Cash Change Calculator
+                    <Calculator className="h-4.5 w-4.5 text-custom-accent" /> Cash Change Calculator
                   </h4>
                   <p className="text-xs text-custom-muted mt-1 leading-relaxed">
                     Prompts register operators to enter the cash amount tendered by customers and shows change to return.
@@ -6578,9 +6770,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleToggleChangeCalculator(!isCashChangeCalculatorEnabled)}
-                  className={`w-12 h-6 rounded-full transition-all duration-200 focus:outline-none flex items-center p-1 cursor-pointer ${
-                    isCashChangeCalculatorEnabled ? 'bg-custom-primary justify-end' : 'bg-custom-input justify-start border border-custom-border'
-                  }`}
+                  className={`w-12 h-6 rounded-full transition-all duration-200 focus:outline-none flex items-center p-1 cursor-pointer ${isCashChangeCalculatorEnabled ? 'bg-custom-primary justify-end' : 'bg-custom-input justify-start border border-custom-border'
+                    }`}
                 >
                   <div className="w-4 h-4 rounded-full bg-white shadow-md" />
                 </button>
@@ -6601,8 +6792,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           className="bg-custom-input/30 border border-custom-border rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:bg-custom-primary/5"
                         >
                           <div className="flex items-start gap-3">
-                            <div className="p-2.5 bg-custom-input rounded-xl border border-custom-border shrink-0 text-lg">
-                              {method.name.toLowerCase().includes('cash') ? '💵' : method.name.toLowerCase().includes('card') ? '💳' : '🏷️'}
+                            <div className="p-2.5 bg-custom-input rounded-xl border border-custom-border shrink-0 flex items-center justify-center">
+                              {method.name.toLowerCase().includes('cash') ? (
+                                <Banknote className="h-5 w-5 text-custom-text" />
+                              ) : method.name.toLowerCase().includes('card') ? (
+                                <CreditCard className="h-5 w-5 text-custom-text" />
+                              ) : isGoDaddy ? (
+                                <MonitorSmartphone className="h-5 w-5 text-custom-text" />
+                              ) : method.name.toLowerCase().includes('check') ? (
+                                <Landmark className="h-5 w-5 text-custom-text" />
+                              ) : method.name.toLowerCase().includes('venmo') ||
+                                method.name.toLowerCase().includes('cashapp') ||
+                                method.name.toLowerCase().includes('cash app') ||
+                                method.name.toLowerCase().includes('zelle') ||
+                                method.name.toLowerCase().includes('paypal') ||
+                                method.name.toLowerCase().includes('pay pal') ||
+                                method.name.toLowerCase().includes('apple pay') ||
+                                method.name.toLowerCase().includes('google pay') ||
+                                method.name.toLowerCase().includes('mobile') ? (
+                                <Smartphone className="h-5 w-5 text-custom-text" />
+                              ) : (
+                                <Tag className="h-5 w-5 text-custom-text" />
+                              )}
                             </div>
                             <div>
                               <h4 className="font-bold text-custom-text text-sm flex items-center gap-2">
@@ -6670,12 +6881,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                   className="w-20 px-2 py-1 bg-custom-input border border-custom-border text-custom-text rounded-lg text-xs font-mono text-center focus:outline-none"
                                 />
                               </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] text-custom-muted font-bold uppercase tracking-wider">Fee Mode</label>
+                                <select
+                                  id={`input-fee-mode-${method.id}`}
+                                  defaultValue={method.fee_mode || 'deducted'}
+                                  className="px-2 py-1 bg-custom-input border border-custom-border text-custom-text rounded-lg text-xs font-bold focus:outline-none"
+                                >
+                                  <option value="deducted">Taken Out (Merchant Absorbed)</option>
+                                  <option value="on_top">Applied On Top (Customer Surcharge)</option>
+                                </select>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => {
                                   const pct = (document.getElementById(`input-fee-pct-${method.id}`) as HTMLInputElement)?.value;
                                   const flat = (document.getElementById(`input-fee-flat-${method.id}`) as HTMLInputElement)?.value;
-                                  handleUpdatePaymentFee(method, pct, flat);
+                                  const mode = (document.getElementById(`input-fee-mode-${method.id}`) as HTMLSelectElement)?.value;
+                                  handleUpdatePaymentFee(method, pct, flat, mode);
                                 }}
                                 className="px-2.5 py-1 bg-custom-primary hover:bg-custom-primary-hover text-white font-bold text-[10px] rounded-lg mt-4 shadow cursor-pointer transition-all active:scale-95"
                               >
@@ -6689,9 +6912,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleTogglePaymentMethod(method, method.enabled === 0)}
-                                  className={`w-10 h-5 rounded-full transition-all duration-200 focus:outline-none flex items-center p-0.5 cursor-pointer ${
-                                    method.enabled === 1 ? 'bg-custom-accent justify-end' : 'bg-custom-input justify-start border border-custom-border'
-                                  }`}
+                                  className={`w-10 h-5 rounded-full transition-all duration-200 focus:outline-none flex items-center p-0.5 cursor-pointer ${method.enabled === 1 ? 'bg-custom-accent justify-end' : 'bg-custom-input justify-start border border-custom-border'
+                                    }`}
                                 >
                                   <div className="w-3.5 h-3.5 rounded-full bg-white shadow-md" />
                                 </button>
@@ -6805,7 +7027,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="🎆 THC FIREWORKS 🎆"
+                      placeholder="THC FIREWORKS"
                       value={organizationName}
                       onChange={async (e) => {
                         const val = e.target.value;
@@ -7222,7 +7444,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="flex items-center gap-1.5 text-[10px] text-custom-muted hover:text-custom-accent underline underline-offset-2 transition-colors"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
                     </svg>
                     View release history on GitHub
                   </button>
@@ -7448,7 +7670,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   {receiptMessage && (
                     <p className="text-[10px] text-zinc-700 font-semibold mt-1 whitespace-pre-wrap">{receiptMessage}</p>
                   )}
-                  <p className="text-[10px] text-zinc-600 mt-1">{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">{organizationName === 'THC FIREWORKS' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                   <p className="text-[9px] text-zinc-500">100% Volunteer Supported</p>
                   <p className="text-[9px] text-zinc-400 mt-2">------------------------------</p>
                   <p className="text-[9px] text-left mt-2">Sale #: {selectedReceiptSale.id}</p>
@@ -7508,7 +7730,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 {receiptMessage && (
                   <p style={{ margin: '3px 0 0 0', fontSize: '10px', color: '#333', whiteSpace: 'pre-wrap' }}>{receiptMessage}</p>
                 )}
-                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === '🎆 THC FIREWORKS 🎆' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
+                <p style={{ margin: '3px 0 0 0', fontSize: '10px' }}>{organizationName === 'THC FIREWORKS' ? 'Thousand Hills Church Booth' : 'Sales Receipt'}</p>
                 <p style={{ margin: '0', fontSize: '9px' }}>100% Volunteer Supported</p>
                 <p style={{ margin: '5px 0 0 0', fontSize: '9px' }}>---------------------------------</p>
                 <div style={{ textAlign: 'left', marginTop: '5px', fontSize: '9px' }}>
@@ -7622,11 +7844,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div
                         key={backup.path}
                         onClick={() => setSelectedCloudBackupId(backup.path)}
-                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-custom-primary/10 border-custom-primary/50 text-custom-text'
-                            : 'bg-custom-input/30 border-custom-border/40 hover:border-custom-border/80 text-custom-muted hover:text-custom-text'
-                        }`}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${isSelected
+                          ? 'bg-custom-primary/10 border-custom-primary/50 text-custom-text'
+                          : 'bg-custom-input/30 border-custom-border/40 hover:border-custom-border/80 text-custom-muted hover:text-custom-text'
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <input
@@ -7752,11 +7973,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div
                         key={backup.path}
                         onClick={() => setSelectedLocalBackupPath(backup.path)}
-                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-custom-primary/10 border-custom-primary/50 text-custom-text'
-                            : 'bg-custom-input/30 border-custom-border/40 hover:border-custom-border/80 text-custom-muted hover:text-custom-text'
-                        }`}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${isSelected
+                          ? 'bg-custom-primary/10 border-custom-primary/50 text-custom-text'
+                          : 'bg-custom-input/30 border-custom-border/40 hover:border-custom-border/80 text-custom-muted hover:text-custom-text'
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <input
@@ -7993,8 +8213,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </li>
               </ol>
 
-              <div className="p-3 bg-custom-input/40 border border-custom-border/40 rounded-xl mt-2 text-[11px]">
-                <strong className="text-custom-accent block mb-1">💡 Pro-Tip for Tents:</strong> Configure your WiFi router to assign a <strong className="text-custom-text">static IP</strong> address to the GoDaddy terminal. Otherwise, its IP may change when restarted, requiring you to update settings again.
+              <div className="p-3 bg-custom-input/40 border border-custom-border/40 rounded-xl mt-2 text-[11px] flex items-start gap-2">
+                <Lightbulb className="h-4 w-4 text-custom-accent shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-custom-accent block mb-1">Pro-Tip for Tents:</strong> Configure your WiFi router to assign a <strong className="text-custom-text">static IP</strong> address to the GoDaddy terminal. Otherwise, its IP may change when restarted, requiring you to update settings again.
+                </div>
               </div>
             </div>
 

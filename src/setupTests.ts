@@ -44,3 +44,8 @@ vi.mock('canvas-confetti', () => {
     default: vi.fn(() => {})
   };
 });
+
+// Mock Element.prototype.scrollIntoView for jsdom
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+

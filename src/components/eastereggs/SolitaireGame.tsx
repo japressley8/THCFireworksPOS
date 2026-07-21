@@ -1219,7 +1219,7 @@ export const SolitaireGame: React.FC<SolitaireGameProps> = ({
                     onClick={() => setIsAutoCompleting(true)}
                     className="px-6 py-2.5 bg-gradient-to-r from-custom-primary to-custom-accent hover:scale-105 active:scale-95 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-custom-primary/30 transition-all border border-white/10 animate-bounce"
                   >
-                    ✨ Auto Complete Game
+                    Auto Complete Game
                   </button>
                 </div>
               )}
@@ -1300,7 +1300,7 @@ export const SolitaireGame: React.FC<SolitaireGameProps> = ({
             <div className="absolute top-0 left-0 w-full h-[4px] bg-custom-accent" />
 
             <div className="flex flex-col items-center">
-              <span className="text-4xl mb-2 animate-bounce">🎇</span>
+              <Trophy className="h-12 w-12 text-yellow-500 mb-2 animate-bounce" />
               <h4 className="font-extrabold text-lg text-custom-text uppercase tracking-tight">Victory!</h4>
               <p className="text-[10px] text-custom-muted font-bold uppercase tracking-wider">Congratulations, Solitaire Solved!</p>
             </div>

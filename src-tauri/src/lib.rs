@@ -111,6 +111,28 @@ struct SaleItemDetail {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+struct SalePaymentDetail {
+    id: i32,
+    sale_id: i32,
+    payment_method_id: Option<i32>,
+    payment_method_name: String,
+    amount_tendered: f64,
+    fee_amount: f64,
+    fee_mode: String,
+    godaddy_trans_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct SalePaymentInput {
+    payment_method_id: Option<i32>,
+    payment_method_name: String,
+    amount_tendered: f64,
+    fee_amount: f64,
+    fee_mode: String,
+    godaddy_trans_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 struct Sale {
     id: i32,
     timestamp: String,
@@ -119,6 +141,7 @@ struct Sale {
     tax_total: f64,
     final_total: f64,
     items: Option<Vec<SaleItemDetail>>,
+    payments: Option<Vec<SalePaymentDetail>>,
     payment_method: Option<String>,
     godaddy_transaction_id: Option<String>,
     transaction_fee: Option<f64>,
@@ -134,6 +157,21 @@ struct PaymentMethod {
     fee_flat: f64,
     is_custom: i32,
     status: String,
+    fee_mode: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ParkedCart {
+    id: i32,
+    label: String,
+    customer_name: Option<String>,
+    customer_phone: Option<String>,
+    cart_json: String,
+    subtotal: f64,
+    tax_total: f64,
+    discount_total: f64,
+    final_total: f64,
+    created_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -206,9 +244,65 @@ struct DriveFile {
     size: Option<String>,
 }
 
+// --- DB CONFIG (db_config.json) ---
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+struct DbConfig {
+    custom_db_path: Option<String>,
+    #[serde(default)]
+    is_temp: bool,
+    /// The original custom path before temp mode was entered (if any).
+    original_custom_path: Option<String>,
+}
+
+fn resolve_db_config_path() -> Option<PathBuf> {
+    resolve_backup_dir().map(|d| d.join("db_config.json"))
+}
+
+fn read_db_config() -> DbConfig {
+    #[cfg(test)]
+    return DbConfig::default();
+    #[cfg(not(test))]
+    {
+        if let Some(cfg_path) = resolve_db_config_path() {
+            if let Ok(contents) = std::fs::read_to_string(&cfg_path) {
+                if let Ok(cfg) = serde_json::from_str::<DbConfig>(&contents) {
+                    return cfg;
+                }
+            }
+        }
+        DbConfig::default()
+    }
+}
+
+fn write_db_config(cfg: &DbConfig) -> Result<(), String> {
+    let cfg_path = resolve_db_config_path()
+        .ok_or_else(|| "Cannot determine db_config.json path".to_string())?;
+    if let Some(parent) = cfg_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&cfg_path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn clear_db_config() {
+    if let Some(cfg_path) = resolve_db_config_path() {
+        let _ = std::fs::remove_file(cfg_path);
+    }
+}
+
 // --- UTILITY PATH RESOLVER ---
 
 fn resolve_db_path() -> Result<PathBuf, String> {
+    #[cfg(not(test))]
+    {
+        let cfg = read_db_config();
+        if let Some(ref custom) = cfg.custom_db_path {
+            let p = PathBuf::from(custom);
+            return Ok(p);
+        }
+    }
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("Failed to find current executable path: {}", e))?;
     let exe_dir = exe_path
@@ -216,6 +310,33 @@ fn resolve_db_path() -> Result<PathBuf, String> {
         .ok_or_else(|| "Failed to get executable directory".to_string())?;
     Ok(exe_dir.join("firework_pos.db"))
 }
+
+/// Returns the "original" primary DB path (ignoring any custom config).
+/// Used by the DB presence poller to know what path to watch for reconnection.
+fn resolve_primary_db_path() -> Result<PathBuf, String> {
+    let cfg = read_db_config();
+    // If in temp mode, the original path is what we watch for
+    if cfg.is_temp {
+        if let Some(ref orig) = cfg.original_custom_path {
+            return Ok(PathBuf::from(orig));
+        }
+        // If no original_custom_path, fall back to exe-dir
+    }
+    // Otherwise, check for a non-temp custom path
+    if !cfg.is_temp {
+        if let Some(ref custom) = cfg.custom_db_path {
+            return Ok(PathBuf::from(custom));
+        }
+    }
+    // Default: exe-dir
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to find current executable path: {}", e))?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Failed to get executable directory".to_string())?;
+    Ok(exe_dir.join("firework_pos.db"))
+}
+
 
 fn resolve_backup_dir() -> Option<PathBuf> {
     #[cfg(test)]
@@ -806,26 +927,64 @@ fn init_db() -> Result<(), String> {
             fee_percentage REAL DEFAULT 0.0,
             fee_flat REAL DEFAULT 0.0,
             is_custom INTEGER DEFAULT 1,
-            status TEXT DEFAULT 'active'
+            status TEXT DEFAULT 'active',
+            fee_mode TEXT DEFAULT 'deducted'
         );",
         [],
     )
     .map_err(|e| format!("Schema error (payment_methods): {}", e))?;
 
+    conn.execute("ALTER TABLE payment_methods ADD COLUMN fee_mode TEXT DEFAULT 'deducted'", []).ok();
+
+    // Create Parked Carts Table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS parked_carts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            label TEXT NOT NULL,
+            customer_name TEXT,
+            customer_phone TEXT,
+            cart_json TEXT NOT NULL,
+            subtotal REAL NOT NULL,
+            tax_total REAL NOT NULL,
+            discount_total REAL NOT NULL,
+            final_total REAL NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );",
+        [],
+    )
+    .map_err(|e| format!("Schema error (parked_carts): {}", e))?;
+
+    // Create Sale Payments Table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS sale_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sale_id INTEGER NOT NULL,
+            payment_method_id INTEGER,
+            payment_method_name TEXT NOT NULL,
+            amount_tendered REAL NOT NULL,
+            fee_amount REAL DEFAULT 0.0,
+            fee_mode TEXT DEFAULT 'deducted',
+            godaddy_trans_id TEXT,
+            FOREIGN KEY(sale_id) REFERENCES sales(id) ON DELETE CASCADE
+        );",
+        [],
+    )
+    .map_err(|e| format!("Schema error (sale_payments): {}", e))?;
+
     // Seed default payment methods if not exists
     conn.execute(
-        "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status)
-         VALUES ('Cash', 1, 0.0, 0.0, 0, 'active')",
+        "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status, fee_mode)
+         VALUES ('Cash', 1, 0.0, 0.0, 0, 'active', 'deducted')",
         [],
     ).ok();
     conn.execute(
-        "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status)
-         VALUES ('Card', 1, 0.0, 0.0, 0, 'active')",
+        "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status, fee_mode)
+         VALUES ('Card', 1, 0.0, 0.0, 0, 'active', 'deducted')",
         [],
     ).ok();
     conn.execute(
-        "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status)
-         VALUES ('GoDaddy Terminal Flex', 0, 0.0, 0.0, 0, 'active')",
+        "INSERT OR IGNORE INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status, fee_mode)
+         VALUES ('GoDaddy Terminal Flex', 0, 0.0, 0.0, 0, 'active', 'deducted')",
         [],
     ).ok();
 
@@ -920,6 +1079,17 @@ fn record_price_history(
 }
 
 // --- TAURI EXPOSED COMMANDS ---
+
+#[tauri::command]
+fn is_portable() -> Result<bool, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to find current executable path: {}", e))?;
+    let file_name = exe_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "Failed to get executable file name".to_string())?;
+    Ok(file_name.to_lowercase().contains("portable"))
+}
 
 #[tauri::command]
 fn get_db_path() -> Result<String, String> {
@@ -1474,6 +1644,7 @@ fn get_sales() -> Result<Vec<Sale>, String> {
                 godaddy_transaction_id: row.get(7)?,
                 transaction_fee: row.get(8)?,
                 status: row.get(9)?,
+                payments: None,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -1513,6 +1684,38 @@ fn get_sales() -> Result<Vec<Sale>, String> {
         }
 
         sale.items = Some(items_vec);
+
+        let mut payments_stmt = conn
+            .prepare(
+                "SELECT id, sale_id, payment_method_id, payment_method_name, amount_tendered, fee_amount, fee_mode, godaddy_trans_id
+                 FROM sale_payments
+                 WHERE sale_id = ?1",
+            )
+            .ok();
+
+        if let Some(ref mut pstmt) = payments_stmt {
+            if let Ok(p_rows) = pstmt.query_map(params![sale.id], |row| {
+                Ok(SalePaymentDetail {
+                    id: row.get(0)?,
+                    sale_id: row.get(1)?,
+                    payment_method_id: row.get(2)?,
+                    payment_method_name: row.get(3)?,
+                    amount_tendered: row.get(4)?,
+                    fee_amount: row.get(5)?,
+                    fee_mode: row.get(6)?,
+                    godaddy_trans_id: row.get(7)?,
+                })
+            }) {
+                let mut p_vec = Vec::new();
+                for pr in p_rows.flatten() {
+                    p_vec.push(pr);
+                }
+                if !p_vec.is_empty() {
+                    sale.payments = Some(p_vec);
+                }
+            }
+        }
+
         sales_list.push(sale);
     }
 
@@ -1773,11 +1976,12 @@ fn get_payment_methods() -> Result<Vec<PaymentMethod>, String> {
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     let mut stmt = conn
-        .prepare("SELECT id, name, enabled, fee_percentage, fee_flat, is_custom, status FROM payment_methods ORDER BY id ASC")
+        .prepare("SELECT id, name, enabled, fee_percentage, fee_flat, is_custom, status, fee_mode FROM payment_methods ORDER BY id ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
         .query_map([], |row| {
+            let fee_mode_val: Option<String> = row.get(7).ok();
             Ok(PaymentMethod {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -1786,6 +1990,7 @@ fn get_payment_methods() -> Result<Vec<PaymentMethod>, String> {
                 fee_flat: row.get(4)?,
                 is_custom: row.get(5)?,
                 status: row.get(6)?,
+                fee_mode: Some(fee_mode_val.unwrap_or_else(|| "deducted".to_string())),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -1798,13 +2003,14 @@ fn get_payment_methods() -> Result<Vec<PaymentMethod>, String> {
 }
 
 #[tauri::command]
-fn save_payment_method(id: i32, enabled: i32, fee_percentage: f64, fee_flat: f64) -> Result<(), String> {
+fn save_payment_method(id: i32, enabled: i32, fee_percentage: f64, fee_flat: f64, fee_mode: Option<String>) -> Result<(), String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let mode = fee_mode.unwrap_or_else(|| "deducted".to_string());
 
     conn.execute(
-        "UPDATE payment_methods SET enabled = ?1, fee_percentage = ?2, fee_flat = ?3 WHERE id = ?4",
-        params![enabled, fee_percentage, fee_flat, id],
+        "UPDATE payment_methods SET enabled = ?1, fee_percentage = ?2, fee_flat = ?3, fee_mode = ?4 WHERE id = ?5",
+        params![enabled, fee_percentage, fee_flat, mode, id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -1813,9 +2019,10 @@ fn save_payment_method(id: i32, enabled: i32, fee_percentage: f64, fee_flat: f64
 }
 
 #[tauri::command]
-fn add_payment_method(name: String, enabled: i32, fee_percentage: f64, fee_flat: f64) -> Result<(), String> {
+fn add_payment_method(name: String, enabled: i32, fee_percentage: f64, fee_flat: f64, fee_mode: Option<String>) -> Result<(), String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let mode = fee_mode.unwrap_or_else(|| "deducted".to_string());
 
     // Check duplicate name case-insensitively
     let existing: Option<(i32, String)> = conn
@@ -1831,8 +2038,8 @@ fn add_payment_method(name: String, enabled: i32, fee_percentage: f64, fee_flat:
         if status == "archived" {
             // Restore archived method
             conn.execute(
-                "UPDATE payment_methods SET status = 'active', enabled = ?1, fee_percentage = ?2, fee_flat = ?3 WHERE id = ?4",
-                params![enabled, fee_percentage, fee_flat, id],
+                "UPDATE payment_methods SET status = 'active', enabled = ?1, fee_percentage = ?2, fee_flat = ?3, fee_mode = ?4 WHERE id = ?5",
+                params![enabled, fee_percentage, fee_flat, mode, id],
             )
             .map_err(|e| e.to_string())?;
         } else {
@@ -1840,15 +2047,181 @@ fn add_payment_method(name: String, enabled: i32, fee_percentage: f64, fee_flat:
         }
     } else {
         conn.execute(
-            "INSERT INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status)
-             VALUES (?1, ?2, ?3, ?4, 1, 'active')",
-            params![name, enabled, fee_percentage, fee_flat],
+            "INSERT INTO payment_methods (name, enabled, fee_percentage, fee_flat, is_custom, status, fee_mode)
+             VALUES (?1, ?2, ?3, ?4, 1, 'active', ?5)",
+            params![name, enabled, fee_percentage, fee_flat, mode],
         )
         .map_err(|e| e.to_string())?;
     }
 
     backup_db();
     Ok(())
+}
+
+// --- PARKED CARTS IPC COMMANDS ---
+
+#[tauri::command]
+fn save_parked_cart(
+    label: String,
+    customer_name: Option<String>,
+    customer_phone: Option<String>,
+    cart_json: String,
+    subtotal: f64,
+    tax_total: f64,
+    discount_total: f64,
+    final_total: f64,
+) -> Result<i64, String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO parked_carts (label, customer_name, customer_phone, cart_json, subtotal, tax_total, discount_total, final_total)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![label, customer_name, customer_phone, cart_json, subtotal, tax_total, discount_total, final_total],
+    ).map_err(|e| e.to_string())?;
+    let id = conn.last_insert_rowid();
+    backup_db();
+    Ok(id)
+}
+
+#[tauri::command]
+fn get_parked_carts() -> Result<Vec<ParkedCart>, String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT id, label, customer_name, customer_phone, cart_json, subtotal, tax_total, discount_total, final_total, created_at FROM parked_carts ORDER BY id DESC").map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], |row| {
+        Ok(ParkedCart {
+            id: row.get(0)?,
+            label: row.get(1)?,
+            customer_name: row.get(2)?,
+            customer_phone: row.get(3)?,
+            cart_json: row.get(4)?,
+            subtotal: row.get(5)?,
+            tax_total: row.get(6)?,
+            discount_total: row.get(7)?,
+            final_total: row.get(8)?,
+            created_at: row.get(9)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+fn delete_parked_cart(id: i32) -> Result<(), String> {
+    let db_path = resolve_db_path()?;
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM parked_carts WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    backup_db();
+    Ok(())
+}
+
+// --- COMPLETE SALE WITH PAYMENTS ---
+
+#[tauri::command]
+fn complete_sale_with_payments(
+    items: Vec<SaleItemInput>,
+    subtotal: f64,
+    discount_total: f64,
+    tax_total: f64,
+    final_total: f64,
+    payment_method: String,
+    godaddy_transaction_id: Option<String>,
+    transaction_fee: f64,
+    payments: Vec<SalePaymentInput>,
+) -> Result<i64, String> {
+    let db_path = resolve_db_path()?;
+    let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute(
+        "INSERT INTO sales (subtotal, discount_total, tax_total, final_total, payment_method, godaddy_transaction_id, transaction_fee, status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'completed')",
+        params![
+            subtotal,
+            discount_total,
+            tax_total,
+            final_total,
+            payment_method,
+            godaddy_transaction_id,
+            transaction_fee
+        ],
+    )
+    .map_err(|e| format!("Failed to insert sale record: {}", e))?;
+
+    let sale_id = tx.last_insert_rowid();
+
+    for target in items {
+        let (stock, bulk_qty): (Option<i32>, Option<i32>) = tx
+            .query_row(
+                "SELECT stock_quantity, bulk_quantity FROM items WHERE id = ?1",
+                params![target.item_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|e| format!("Item ID {} query error: {}", target.item_id, e))?;
+
+        let allow_oversell: bool = tx
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'allow_oversell'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .map(|v| v == "true")
+            .unwrap_or(false);
+
+        if let Some(stock_val) = stock {
+            let qty_to_deduct = if target.is_bulk.unwrap_or(false) {
+                target.quantity * bulk_qty.unwrap_or(1)
+            } else {
+                target.quantity
+            };
+
+            if !allow_oversell && stock_val < qty_to_deduct {
+                return Err(format!(
+                    "Transaction canceled. Insufficient inventory for Item ID {}. Available: {}, Requested: {}",
+                    target.item_id, stock_val, qty_to_deduct
+                ));
+            }
+
+            tx.execute(
+                "UPDATE items SET stock_quantity = stock_quantity - ?1 WHERE id = ?2",
+                params![qty_to_deduct, target.item_id],
+            )
+            .map_err(|e| format!("Failed to deduct inventory for Item ID {}: {}", target.item_id, e))?;
+        }
+
+        let is_bulk_val = if target.is_bulk.unwrap_or(false) { 1 } else { 0 };
+        tx.execute(
+            "INSERT INTO sale_items (sale_id, item_id, quantity, price_at_sale, is_bulk)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![sale_id, target.item_id, target.quantity, target.price_at_sale, is_bulk_val],
+        )
+        .map_err(|e| format!("Failed to insert sale line item: {}", e))?;
+    }
+
+    for p in payments {
+        tx.execute(
+            "INSERT INTO sale_payments (sale_id, payment_method_id, payment_method_name, amount_tendered, fee_amount, fee_mode, godaddy_trans_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                sale_id,
+                p.payment_method_id,
+                p.payment_method_name,
+                p.amount_tendered,
+                p.fee_amount,
+                p.fee_mode,
+                p.godaddy_trans_id
+            ],
+        )
+        .map_err(|e| format!("Failed to insert sale payment record: {}", e))?;
+    }
+
+    tx.commit().map_err(|e| format!("Failed to commit sale transaction: {}", e))?;
+    backup_db();
+    Ok(sale_id)
 }
 
 #[tauri::command]
@@ -1902,6 +2275,45 @@ fn update_sale_payment(sale_id: i32, payment_method: String, transaction_fee: f6
     )
     .map_err(|e| e.to_string())?;
 
+    backup_db();
+    Ok(())
+}
+
+#[tauri::command]
+fn update_split_sale_payment_item(
+    payment_id: i32,
+    sale_id: i32,
+    payment_method_name: String,
+    payment_method_id: Option<i32>,
+    fee_amount: f64,
+    fee_mode: String,
+) -> Result<(), String> {
+    let db_path = resolve_db_path()?;
+    let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute(
+        "UPDATE sale_payments SET payment_method_name = ?1, payment_method_id = ?2, fee_amount = ?3, fee_mode = ?4 WHERE id = ?5",
+        params![payment_method_name, payment_method_id, fee_amount, fee_mode, payment_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Recalculate total transaction fee for the sale
+    let total_fee: f64 = tx
+        .query_row(
+            "SELECT IFNULL(SUM(fee_amount), 0.0) FROM sale_payments WHERE sale_id = ?1",
+            params![sale_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0.0);
+
+    tx.execute(
+        "UPDATE sales SET transaction_fee = ?1 WHERE id = ?2",
+        params![total_fee, sale_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
     backup_db();
     Ok(())
 }
@@ -3031,7 +3443,7 @@ fn export_tables_to_csv(folder_path: String, tables: Vec<String>) -> Result<Vec<
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods"];
+    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods", "parked_carts", "sale_payments"];
     let mut exported_files = Vec::new();
 
     let date: String = conn.query_row("SELECT strftime('%Y-%m-%d', 'now')", [], |r| r.get(0))
@@ -3095,7 +3507,7 @@ fn pick_import_folder() -> Result<Option<String>, String> {
 #[tauri::command]
 fn scan_import_folder(folder_path: String) -> Result<Vec<String>, String> {
     let dir = std::fs::read_dir(&folder_path).map_err(|e| format!("Failed to read directory: {}", e))?;
-    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods"];
+    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods", "parked_carts", "sale_payments"];
     let mut found = std::collections::HashSet::new();
 
     for entry in dir {
@@ -3125,7 +3537,7 @@ fn import_tables_from_csv(
     let db_path = resolve_db_path()?;
     let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods"];
+    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods", "parked_carts", "sale_payments"];
     let mut imported = 0;
     let mut skipped = 0;
     let mut errors = Vec::new();
@@ -3565,7 +3977,7 @@ fn get_table_rows(table: String) -> Result<Vec<serde_json::Value>, String> {
     let db_path = resolve_db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods"];
+    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods", "parked_carts", "sale_payments"];
     if !whitelist.contains(&table.as_str()) {
         return Err(format!("SQL Injection Guard: Table '{}' is not whitelisted", table));
     }
@@ -3677,7 +4089,7 @@ fn import_table_rows_batch(
     let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| format!("Failed to start transaction: {}", e))?;
 
-    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods"];
+    let whitelist = ["items", "discounts", "taxes", "sales", "sale_items", "settings", "item_price_history", "payment_methods", "parked_carts", "sale_payments"];
     if !whitelist.contains(&table_name.as_str()) {
         return Err(format!("SQL Injection Guard: Table '{}' is not whitelisted", table_name));
     }
@@ -4236,6 +4648,257 @@ async fn restore_from_google_backup() -> Result<String, String> {
     restore_from_google_backup_file(newest.path.clone()).await
 }
 
+// --- CUSTOM DB LOCATION COMMANDS ---
+
+#[derive(Serialize)]
+struct DbStatus {
+    custom_db_path: Option<String>,
+    is_temp: bool,
+    original_custom_path: Option<String>,
+    primary_path_exists: bool,
+    resolved_db_path: String,
+}
+
+#[tauri::command]
+fn get_db_status() -> Result<DbStatus, String> {
+    let cfg = read_db_config();
+    let primary_path = resolve_primary_db_path()?;
+    let resolved_path = resolve_db_path()?;
+    let primary_path_exists = primary_path.exists();
+    Ok(DbStatus {
+        custom_db_path: cfg.custom_db_path,
+        is_temp: cfg.is_temp,
+        original_custom_path: cfg.original_custom_path,
+        primary_path_exists,
+        resolved_db_path: resolved_path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn get_custom_db_path() -> Result<Option<String>, String> {
+    let cfg = read_db_config();
+    Ok(cfg.custom_db_path.clone())
+}
+
+#[tauri::command]
+async fn set_custom_db_path(new_folder: String) -> Result<String, String> {
+    let src = resolve_db_path()?;
+    let dest_dir = PathBuf::from(&new_folder);
+    std::fs::create_dir_all(&dest_dir).map_err(|e| format!("Cannot create destination folder: {}", e))?;
+    let dest = dest_dir.join("firework_pos.db");
+    std::fs::copy(&src, &dest)
+        .map_err(|e| format!("Failed to copy database to new location: {}", e))?;
+    let cfg = DbConfig {
+        custom_db_path: Some(dest.to_string_lossy().to_string()),
+        is_temp: false,
+        original_custom_path: None,
+    };
+    write_db_config(&cfg)?;
+    log_app_event("info", &format!("[DB Location] Custom DB path set to: {}", dest.to_string_lossy()));
+    Ok(dest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn clear_custom_db_path() -> Result<(), String> {
+    clear_db_config();
+    log_app_event("info", "[DB Location] Custom DB path cleared, reverted to default exe-dir.");
+    Ok(())
+}
+
+#[tauri::command]
+fn open_folder_picker() -> Result<Option<String>, String> {
+    let result = rfd::FileDialog::new().pick_folder();
+    match result {
+        Some(path) => Ok(Some(path.to_string_lossy().to_string())),
+        None => Ok(None),
+    }
+}
+
+// --- MISSING DB DETECTION & RECOVERY COMMANDS ---
+
+/// Copies the most recent local backup to a temp file and configures the app to use it.
+/// Saves the original primary path so we can watch for it to come back.
+#[tauri::command]
+fn use_backup_as_temp_db() -> Result<(), String> {
+    let primary_path = resolve_primary_db_path()?;
+    let backup_dir = resolve_backup_dir()
+        .ok_or_else(|| "Cannot resolve backup directory".to_string())?;
+
+    // Find the newest local backup
+    let mut backups: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&backup_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("firework_pos_backup_") && name.ends_with(".db") && name.len() == 38 {
+                backups.push(entry.path());
+            }
+        }
+    }
+    backups.sort();
+    let newest_backup = backups.last()
+        .ok_or_else(|| "No local backups found to use as temporary database.".to_string())?
+        .clone();
+
+    let temp_path = backup_dir.join("firework_pos_temp.db");
+    std::fs::copy(&newest_backup, &temp_path)
+        .map_err(|e| format!("Failed to copy backup to temp DB: {}", e))?;
+
+    let cfg = DbConfig {
+        custom_db_path: Some(temp_path.to_string_lossy().to_string()),
+        is_temp: true,
+        original_custom_path: Some(primary_path.to_string_lossy().to_string()),
+    };
+    write_db_config(&cfg)?;
+    log_app_event("info", "[DB Recovery] Switched to temporary backup DB.");
+    Ok(())
+}
+
+/// Checks whether the primary (originally configured) DB path now exists.
+#[tauri::command]
+fn rescan_for_primary_db() -> Result<bool, String> {
+    let primary_path = resolve_primary_db_path()?;
+    Ok(primary_path.exists())
+}
+
+#[derive(Serialize)]
+struct RestorePrimaryResult {
+    overwritten: bool,
+}
+
+/// Called when the primary DB drive has been reconnected.
+/// Compares timestamps; if temp is newer, overwrites primary. Cleans up temp.
+#[tauri::command]
+fn restore_primary_db() -> Result<RestorePrimaryResult, String> {
+    let cfg = read_db_config();
+    if !cfg.is_temp {
+        return Err("Not currently in temporary DB mode.".to_string());
+    }
+
+    let primary_path = resolve_primary_db_path()?;
+    if !primary_path.exists() {
+        return Err("Primary DB path still not found.".to_string());
+    }
+
+    let temp_path = PathBuf::from(
+        cfg.custom_db_path.as_deref().unwrap_or("")
+    );
+
+    // Compare local_backup_last_updated timestamps via SQLite
+    let get_ts = |path: &PathBuf| -> Option<String> {
+        Connection::open(path).ok().and_then(|conn| {
+            conn.query_row(
+                "SELECT value FROM backup_metadata WHERE key = 'local_backup_last_updated'",
+                [],
+                |r| r.get::<_, String>(0),
+            ).ok()
+        })
+    };
+
+    let primary_ts = get_ts(&primary_path);
+    let temp_ts = get_ts(&temp_path);
+
+    let overwritten = match (&temp_ts, &primary_ts) {
+        (Some(t), Some(p)) => t.as_str() > p.as_str(), // ISO string comparison works for RFC3339
+        (Some(_), None)    => true,  // primary has no metadata — temp must be newer
+        _                  => false,
+    };
+
+    if overwritten {
+        std::fs::copy(&temp_path, &primary_path)
+            .map_err(|e| format!("Failed to overwrite primary DB with temp: {}", e))?;
+        // Log restoration in the primary DB
+        if let Ok(conn) = Connection::open(&primary_path) {
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS backup_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+                [],
+            ).ok();
+            let ts: String = conn.query_row(
+                "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now')", [], |r| r.get(0)
+            ).unwrap_or_else(|_| "2026-07-06T00:00:00Z".to_string());
+            conn.execute(
+                "INSERT OR REPLACE INTO backup_metadata (key, value) VALUES ('restored_temp_over_primary_at', ?1)",
+                params![ts],
+            ).ok();
+        }
+        log_app_event("info", "[DB Recovery] Temp DB was newer — overwrote primary with temp data.");
+    } else {
+        log_app_event("info", "[DB Recovery] Primary DB was up-to-date — no overwrite needed.");
+    }
+
+    // Delete the temp file
+    let _ = std::fs::remove_file(&temp_path);
+
+    // Restore config to original (non-temp) state
+    let new_cfg = DbConfig {
+        custom_db_path: cfg.original_custom_path.clone(),
+        is_temp: false,
+        original_custom_path: None,
+    };
+    if new_cfg.custom_db_path.is_none() {
+        clear_db_config();
+    } else {
+        write_db_config(&new_cfg)?;
+    }
+
+    log_app_event("info", "[DB Recovery] Primary DB fully restored. Temp mode cleared.");
+    Ok(RestorePrimaryResult { overwritten })
+}
+
+/// Opens a folder picker and restores the most recent local backup to that folder as the primary DB.
+#[tauri::command]
+fn choose_new_location_restore() -> Result<String, String> {
+    let result = rfd::FileDialog::new().pick_folder();
+    let folder = match result {
+        Some(p) => p,
+        None => return Err("No folder selected.".to_string()),
+    };
+
+    let backup_dir = resolve_backup_dir()
+        .ok_or_else(|| "Cannot resolve backup directory".to_string())?;
+    let mut backups: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&backup_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("firework_pos_backup_") && name.ends_with(".db") && name.len() == 38 {
+                backups.push(entry.path());
+            }
+        }
+    }
+    backups.sort();
+    let newest_backup = backups.last()
+        .ok_or_else(|| "No local backups found to restore from.".to_string())?
+        .clone();
+
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let dest = folder.join("firework_pos.db");
+    std::fs::copy(&newest_backup, &dest)
+        .map_err(|e| format!("Failed to copy backup: {}", e))?;
+
+    let cfg = DbConfig {
+        custom_db_path: Some(dest.to_string_lossy().to_string()),
+        is_temp: false,
+        original_custom_path: None,
+    };
+    write_db_config(&cfg)?;
+    log_app_event("info", &format!("[DB Recovery] Restored backup to new location: {}", dest.to_string_lossy()));
+    Ok(dest.to_string_lossy().to_string())
+}
+
+// --- ON-APP-CLOSE CLOUD BACKUP COMMANDS ---
+
+/// Triggers a final cloud backup synchronously (same logic as trigger_cloud_backup_now).
+#[tauri::command]
+async fn trigger_final_cloud_backup() -> Result<String, String> {
+    trigger_cloud_backup_now().await
+}
+
+/// Forcefully exits the application. Called by the frontend after handling the close-backup prompt.
+#[tauri::command]
+fn exit_app(app_handle: tauri::AppHandle) {
+    log_app_event("info", "exit_app: User confirmed app exit.");
+    app_handle.exit(0);
+}
+
 // --- MODULE INVOCATION ENTRY ---
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -4401,6 +5064,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            is_portable,
             get_db_path,
             get_items,
             get_item_by_barcode,
@@ -4422,7 +5086,12 @@ pub fn run() {
             save_payment_method,
             add_payment_method,
             delete_payment_method,
+            save_parked_cart,
+            get_parked_carts,
+            delete_parked_cart,
+            complete_sale_with_payments,
             update_sale_payment,
+            update_split_sale_payment_item,
             refund_sale,
             seed_historical_sales,
             get_item_price_history,
@@ -4481,7 +5150,18 @@ pub fn run() {
             list_system_keyboards,
             print_to_named_printer,
             log_event,
-            open_logs_dir
+            open_logs_dir,
+            get_custom_db_path,
+            set_custom_db_path,
+            clear_custom_db_path,
+            open_folder_picker,
+            use_backup_as_temp_db,
+            rescan_for_primary_db,
+            restore_primary_db,
+            choose_new_location_restore,
+            trigger_final_cloud_backup,
+            exit_app,
+            get_db_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -4629,9 +5309,11 @@ fn seed_test_data() -> Result<(), String> {
     tx.execute("DELETE FROM item_price_history", []).ok();
     tx.execute("DELETE FROM discounts", []).ok();
     tx.execute("DELETE FROM taxes", []).ok();
+    tx.execute("DELETE FROM parked_carts", []).ok();
+    tx.execute("DELETE FROM sale_payments", []).ok();
     
     // Reset sequences
-    tx.execute("DELETE FROM sqlite_sequence WHERE name IN ('sale_items', 'sales', 'items', 'item_price_history', 'discounts', 'taxes')", []).ok();
+    tx.execute("DELETE FROM sqlite_sequence WHERE name IN ('sale_items', 'sales', 'items', 'item_price_history', 'discounts', 'taxes', 'parked_carts', 'sale_payments')", []).ok();
     
     // Seed taxes
     tx.execute("INSERT INTO taxes (name, rate, scope) VALUES ('Missouri Sales Tax', 8.475, 'total')", []).map_err(|e| e.to_string())?;
@@ -4681,6 +5363,10 @@ fn seed_test_data() -> Result<(), String> {
             None, None, None, Some(0.65), Some(1), None, None),
         ("1018", "Family Fun Assortment Box", 49.99, Some(9), Some("Curated family-safe assortment — ground effects sparklers smoke and poppers"),
             None, None, None, Some(22.00), Some(1), None, None),
+        ("1019", "Pyro Launcher Out-of-Stock Demo", 79.99, Some(0), Some("Out of stock test item for low inventory alert verification"),
+            None, None, None, Some(35.00), Some(1), None, None),
+        ("1020", "Free Promotional Matchbook", 0.00, Some(500), Some("Free promotional safety matches for every customer purchase"),
+            None, None, None, Some(0.05), Some(1), None, None),
     ];
     
     for (bar, name, pr, stock, notes, bbar, bpr, bqty, cost, tax, video, tags) in &fireworks {
@@ -4713,6 +5399,19 @@ fn seed_test_data() -> Result<(), String> {
     tx.execute("INSERT INTO discounts (name, type, value, qualifier_type, reward_type, reward_value, reward_value_type, max_limit_per_order, value_cap, is_stackable) 
                 VALUES ('Unstackable VIP Discount ($15 Cap)', 'fixed', 15.0, 'manual', 'order_discount', 15.0, 'fixed', 1, 15.0, 0)", []).map_err(|e| e.to_string())?;
     
+    // Seed parked carts
+    tx.execute(
+        "INSERT INTO parked_carts (label, customer_name, customer_phone, cart_json, subtotal, tax_total, discount_total, final_total) 
+         VALUES ('Show Display Cart', 'John Smith', '555-0199', '[{\"id\":1,\"barcode\":\"1001\",\"name\":\"Red Hot Sparklers (10-pack)\",\"price\":4.99,\"quantity\":3}]', 14.97, 1.27, 0.00, 16.24)",
+        [],
+    ).ok();
+
+    tx.execute(
+        "INSERT INTO parked_carts (label, customer_name, customer_phone, cart_json, subtotal, tax_total, discount_total, final_total) 
+         VALUES ('Church Festival Bulk Draft', 'St. Mary Church', '555-0144', '[{\"id\":5,\"barcode\":\"1005\",\"name\":\"Mega Blast Repeater Cake (500g)\",\"price\":49.99,\"quantity\":2}]', 99.98, 8.47, 10.00, 98.45)",
+        [],
+    ).ok();
+
     // Seed realistic per-item price history (items had different prices in prior years)
     let price_history: Vec<(i32, &str, f64)> = vec![
         (1,  "2023", 3.99),  (1,  "2024", 4.49),  (1,  "2025", 4.99),
@@ -4780,10 +5479,22 @@ fn seed_test_data() -> Result<(), String> {
     }
     tx.commit().map_err(|e| e.to_string())?;
 
-    // Seed total_stock_cost_spent setting (realistic yearly inventory investment)
+    // Seed store settings
     let conn3 = Connection::open(&db_path).map_err(|e| e.to_string())?;
     conn3.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES ('total_stock_cost_spent', '18450.00')",
+        [],
+    ).ok();
+    conn3.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('receipt_header_text', 'THC Fireworks & Pyrotechnics Superstore')",
+        [],
+    ).ok();
+    conn3.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('receipt_footer_text', 'Thank you for celebrating safely!')",
+        [],
+    ).ok();
+    conn3.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('low_stock_threshold', '15')",
         [],
     ).ok();
     
@@ -5614,4 +6325,107 @@ mod tests {
         assert_eq!(percent_decode("hello+world"), "hello world");
         assert_eq!(percent_decode("hello%2fworld"), "hello/world");
     }
+
+    #[test]
+    fn test_parked_carts_full_lifecycle() {
+        cleanup_test_db();
+        assert!(init_db().is_ok());
+
+        let label = "Customer Hold #1".to_string();
+        let customer_name = Some("Alice Johnson".to_string());
+        let customer_phone = Some("555-0123".to_string());
+        let cart_json = r#"[{"id":1,"barcode":"1001","name":"Sparkler","price":4.99,"quantity":2}]"#.to_string();
+        let subtotal = 9.98;
+        let tax_total = 0.85;
+        let discount_total = 0.00;
+        let final_total = 10.83;
+
+        // Park cart
+        let park_res = save_parked_cart(
+            label.clone(),
+            customer_name.clone(),
+            customer_phone.clone(),
+            cart_json.clone(),
+            subtotal,
+            tax_total,
+            discount_total,
+            final_total,
+        );
+        assert!(park_res.is_ok());
+        let parked_id = park_res.unwrap() as i32;
+        assert!(parked_id > 0);
+
+        // Retrieve parked carts
+        let carts = get_parked_carts().expect("Failed to fetch parked carts");
+        assert_eq!(carts.len(), 1);
+        assert_eq!(carts[0].label, "Customer Hold #1");
+        assert_eq!(carts[0].customer_name.as_deref(), Some("Alice Johnson"));
+
+        // Delete parked cart
+        assert!(delete_parked_cart(parked_id).is_ok());
+        let carts_after = get_parked_carts().expect("Failed to fetch parked carts after deletion");
+        assert!(carts_after.is_empty());
+
+        cleanup_test_db();
+    }
+
+    #[test]
+    fn test_refund_and_sales_status() {
+        cleanup_test_db();
+        assert!(init_db().is_ok());
+
+        // Create item
+        assert!(add_item(
+            "8881".to_string(),
+            "Refund Test Item".to_string(),
+            15.00,
+            Some(50),
+            None, None, None, None, None, None, None, None, None, None
+        ).is_ok());
+
+        let item = get_item_by_barcode("8881".to_string()).unwrap().unwrap();
+
+        // Complete sale of 5 items
+        let cart = vec![SaleItemInput {
+            item_id: item.id,
+            quantity: 5,
+            price_at_sale: item.price,
+            is_bulk: None,
+        }];
+        let sale_id = complete_sale(cart, 75.00, 0.0, 0.0, 75.00, "Cash".to_string(), None, 0.0)
+            .expect("Sale failed");
+
+        // Verify stock dropped to 45
+        let item_after_sale = get_item_by_barcode("8881".to_string()).unwrap().unwrap();
+        assert_eq!(item_after_sale.stock_quantity, Some(45));
+
+        // Soft delete/refund sale ID
+        let conn = Connection::open(&resolve_db_path().unwrap()).unwrap();
+        let refund_res = conn.execute("UPDATE sales SET status = 'refunded' WHERE id = ?1", params![sale_id]);
+        assert!(refund_res.is_ok());
+
+        // Restock items manually upon refund
+        conn.execute("UPDATE items SET stock_quantity = stock_quantity + 5 WHERE id = ?1", params![item.id]).ok();
+
+        let item_after_refund = get_item_by_barcode("8881".to_string()).unwrap().unwrap();
+        assert_eq!(item_after_refund.stock_quantity, Some(50));
+
+        cleanup_test_db();
+    }
+
+    #[test]
+    fn test_store_settings_operations() {
+        cleanup_test_db();
+        assert!(init_db().is_ok());
+
+        assert!(save_setting("test_key".to_string(), "test_val".to_string()).is_ok());
+        let val = get_setting("test_key".to_string()).unwrap();
+        assert_eq!(val, Some("test_val".to_string()));
+
+        let default_val = get_setting("non_existent_key".to_string()).unwrap();
+        assert_eq!(default_val, None);
+
+        cleanup_test_db();
+    }
 }
+

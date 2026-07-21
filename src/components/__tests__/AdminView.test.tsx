@@ -73,6 +73,14 @@ describe('AdminView Component', () => {
     }
   ];
 
+  const mockDbStatus = {
+    custom_db_path: null,
+    is_temp: false,
+    original_custom_path: null,
+    primary_path_exists: true,
+    resolved_db_path: '/path/to/pos.db'
+  };
+
   const defaultProps = {
     scannedBarcode: '',
     onClearScan: vi.fn(),
@@ -86,6 +94,8 @@ describe('AdminView Component', () => {
     totalStockCostSpent: 0,
     onTotalCostChange: vi.fn(),
     onTriggerUpdateCheck: vi.fn(),
+    dbStatus: mockDbStatus,
+    onRefreshDbStatus: vi.fn().mockResolvedValue(mockDbStatus)
   };
 
   beforeEach(() => {
@@ -770,6 +780,56 @@ describe('AdminView Component', () => {
 
       await waitFor(() => {
         expect(mockUpdateCheck).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  describe('Database Status & SubTab Navigation Edge Cases', () => {
+    it('displays database status metrics and current path', async () => {
+      render(<AdminView {...defaultProps} subTab="data" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Database File Location')).toBeInTheDocument();
+        expect(screen.getByText('/path/to/pos.db')).toBeInTheDocument();
+      });
+    });
+
+    it('navigates seamlessly across primary subtabs', async () => {
+      const handleSubTabChange = vi.fn();
+      render(<AdminView {...defaultProps} onSubTabChange={handleSubTabChange} />);
+
+      // Click Sales Ledger
+      fireEvent.click(screen.getByText('Sales Ledger'));
+      expect(handleSubTabChange).toHaveBeenCalledWith('sales');
+
+      // Click Analytics
+      fireEvent.click(screen.getByText('Analytics'));
+      expect(handleSubTabChange).toHaveBeenCalledWith('analytics');
+
+      // Click Data Management
+      fireEvent.click(screen.getByText('Data Management'));
+      expect(handleSubTabChange).toHaveBeenCalledWith('data');
+
+      // Click Discounts
+      fireEvent.click(screen.getByText('Discounts'));
+      expect(handleSubTabChange).toHaveBeenCalledWith('discounts');
+    });
+
+    it('handles deleting a sale transaction from the sales ledger tab', async () => {
+      mockInvoke.mockImplementation((cmd: string, _args?: any) => {
+        if (cmd === 'get_items') return Promise.resolve(mockItems);
+        if (cmd === 'get_discounts') return Promise.resolve(mockDiscounts);
+        if (cmd === 'get_sales') return Promise.resolve(mockSales);
+        if (cmd === 'get_taxes') return Promise.resolve([]);
+        if (cmd === 'get_payment_methods') return Promise.resolve([]);
+        if (cmd === 'delete_sale') return Promise.resolve({ success: true });
+        return Promise.resolve(null);
+      });
+
+      render(<AdminView {...defaultProps} subTab="sales" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('#10')).toBeInTheDocument();
       });
     });
   });

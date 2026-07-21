@@ -259,6 +259,60 @@ export const DeveloperWindow: React.FC = () => {
     }
   };
 
+  const handleSeedParkedCarts = async () => {
+    setSeeding(true);
+    setSeedStatus('Inserting mock parked carts into SQLite database...');
+    try {
+      const mockCarts = [
+        {
+          label: 'John / Blue Truck',
+          customer_name: 'John Doe',
+          customer_phone: '(555) 123-4567',
+          cart_json: JSON.stringify([
+            { item: { id: 1, name: '500g Aerial Finale Cake', price: 49.99, barcode: '1001' }, quantity: 2 },
+            { item: { id: 2, name: 'Excalibur Artillery Shells', price: 99.99, barcode: '1002' }, quantity: 1 }
+          ]),
+          subtotal: 199.97,
+          tax_total: 14.00,
+          discount_total: 0,
+          final_total: 213.97
+        },
+        {
+          label: 'Hold #102 - Neighborhood Show',
+          customer_name: 'Sarah Smith',
+          customer_phone: '(555) 987-6543',
+          cart_json: JSON.stringify([
+            { item: { id: 3, name: '200-Shot Roman Candle Array', price: 34.99, barcode: '1003' }, quantity: 3 }
+          ]),
+          subtotal: 104.97,
+          tax_total: 7.35,
+          discount_total: 10.00,
+          final_total: 102.32
+        }
+      ];
+
+      for (const c of mockCarts) {
+        await invoke('save_parked_cart', {
+          label: c.label,
+          customerName: c.customer_name,
+          customerPhone: c.customer_phone,
+          cartJson: c.cart_json,
+          subtotal: c.subtotal,
+          taxTotal: c.tax_total,
+          discountTotal: c.discount_total,
+          finalTotal: c.final_total
+        });
+      }
+
+      setSeedStatus('Success: Created 2 mock parked carts in SQLite.');
+      emit('database-seeding-completed', {});
+    } catch (err) {
+      setSeedStatus(`Error seeding parked carts: ${err}`);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const handleSimulatedDateChange = async (dateVal: string) => {
     setSimulatedDate(dateVal);
     const valueToSave = dateVal || '';
@@ -393,17 +447,30 @@ export const DeveloperWindow: React.FC = () => {
             <p className="text-xs text-[#a0a0a8] mb-4">
               Clears the inventory database completely and inserts pre-configured testing catalog items, sales, and analytics records.
             </p>
-            <button
-              onClick={handleSeedTestData}
-              disabled={seeding}
-              className={`w-full py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider transition-all border ${
-                seeding 
-                  ? 'bg-[#323238] border-[#444] text-[#6e6e76] cursor-not-allowed'
-                  : 'bg-emerald-600 border-emerald-500 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/20 active:scale-[0.98]'
-              }`}
-            >
-              {seeding ? 'Seeding Data...' : 'Insert Test Data'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSeedTestData}
+                disabled={seeding}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider transition-all border ${
+                  seeding 
+                    ? 'bg-[#323238] border-[#444] text-[#6e6e76] cursor-not-allowed'
+                    : 'bg-emerald-600 border-emerald-500 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/20 active:scale-[0.98]'
+                }`}
+              >
+                {seeding ? 'Seeding...' : 'Insert Test Data'}
+              </button>
+              <button
+                onClick={handleSeedParkedCarts}
+                disabled={seeding}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider transition-all border ${
+                  seeding 
+                    ? 'bg-[#323238] border-[#444] text-[#6e6e76] cursor-not-allowed'
+                    : 'bg-indigo-600 border-indigo-500 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/20 active:scale-[0.98]'
+                }`}
+              >
+                Seed Parked Carts
+              </button>
+            </div>
             {seedStatus && (
               <div className={`mt-3 p-3 rounded-lg text-xs font-mono border ${
                 seedStatus.startsWith('Error') 
@@ -568,9 +635,9 @@ export const DeveloperWindow: React.FC = () => {
                     ))}
                   </div>
                   <span className="text-[9px] text-[#8c8c94] font-mono">
-                    {mockBehavior === 'approve' && '💳 Transaction finishes successfully in 1.5s.'}
-                    {mockBehavior === 'decline' && '❌ Transaction fails immediately with decline error.'}
-                    {mockBehavior === 'timeout' && '⏳ Hangs for 4.0s before throwing connection timeout.'}
+                    {mockBehavior === 'approve' && 'Success: Transaction finishes successfully in 1.5s.'}
+                    {mockBehavior === 'decline' && 'Declined: Transaction fails immediately with decline error.'}
+                    {mockBehavior === 'timeout' && 'Timeout: Hangs for 4.0s before throwing connection timeout.'}
                   </span>
                 </div>
 

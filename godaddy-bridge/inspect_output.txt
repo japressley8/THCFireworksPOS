@@ -1,0 +1,1558 @@
+﻿Assembly: PoyntPOSBridge, Version=1.0.180.1, Culture=neutral, PublicKeyToken=36a12ba3ab672fcd
+
+Type: PoyntPOSBridge.AuthorizeAdjustmentRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: String get_TransactionId()
+  Method: Void set_TransactionId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: AdjustmentPayment get_Payment()
+  Method: Void set_Payment(AdjustmentPayment value)
+  Method: AuthorizeAdjustmentRequest Create(Int32 defaultTimeoutInMs, String transactionId, Nullable`1 amount, Nullable`1 tipAmount)
+  Property: String PoyntRequestId
+  Property: String TransactionId
+  Property: Int32 Timeout
+  Property: AdjustmentPayment Payment
+
+Type: PoyntPOSBridge.AdjustmentPayment
+  Method: Nullable`1 get_Amount()
+  Method: Void set_Amount(Nullable`1 value)
+  Method: Nullable`1 get_TipAmount()
+  Method: Void set_TipAmount(Nullable`1 value)
+  Property: Nullable`1 Amount
+  Property: Nullable`1 TipAmount
+
+Type: PoyntPOSBridge.AuthorizeCompletionPayment
+  Method: Nullable`1 get_Amount()
+  Method: Void set_Amount(Nullable`1 value)
+  Method: Nullable`1 get_TipAmount()
+  Method: Void set_TipAmount(Nullable`1 value)
+  Property: Nullable`1 Amount
+  Property: Nullable`1 TipAmount
+
+Type: PoyntPOSBridge.AuthorizeCompletionRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: String get_TransactionId()
+  Method: Void set_TransactionId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: AuthorizeCompletionPayment get_Payment()
+  Method: Void set_Payment(AuthorizeCompletionPayment value)
+  Method: AuthorizeCompletionRequest Create(Int32 timeoutInMs, String transactionId, Int32 amount, Int32 tipAmount)
+  Method: AuthorizeCompletionRequest Create(Int32 timeoutInMs, String transactionId)
+  Property: String PoyntRequestId
+  Property: String TransactionId
+  Property: Int32 Timeout
+  Property: AuthorizeCompletionPayment Payment
+
+Type: PoyntPOSBridge.AuthorizePreSalesRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: Payment get_Payment()
+  Method: Void set_Payment(Payment value)
+  Method: ReceiptPreference get_ReceiptPreference()
+  Method: Void set_ReceiptPreference(ReceiptPreference value)
+  Method: AuthorizePreSalesRequest Create(Int32 timeoutInMs, String currencyCode, Int32 amount)
+  Property: String PoyntRequestId
+  Property: Int32 Timeout
+  Property: Payment Payment
+  Property: ReceiptPreference ReceiptPreference
+
+Type: PoyntPOSBridge.AuthorizeSalesRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: Payment get_Payment()
+  Method: Void set_Payment(Payment value)
+  Method: ReceiptPreference get_ReceiptPreference()
+  Method: Void set_ReceiptPreference(ReceiptPreference value)
+  Method: AuthorizeSalesRequest Create(Int32 timeoutInMs, String currencyCode, Int32 amount)
+  Property: String PoyntRequestId
+  Property: Int32 Timeout
+  Property: Payment Payment
+  Property: ReceiptPreference ReceiptPreference
+
+Type: PoyntPOSBridge.AuthorizeSalesResponse
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Payment get_Payment()
+  Method: Void set_Payment(Payment value)
+  Method: PrintedReceiptV2 get_ReceiptV2()
+  Method: Void set_ReceiptV2(PrintedReceiptV2 value)
+  Property: String PoyntRequestId
+  Property: Payment Payment
+  Property: PrintedReceiptV2 ReceiptV2
+  Property: Dictionary`2 Error
+  Property: Boolean TimedOut
+
+Type: PoyntPOSBridge.AuthorizeVoidRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: String get_TransactionId()
+  Method: Void set_TransactionId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: Payment get_Payment()
+  Method: Void set_Payment(Payment value)
+  Property: String PoyntRequestId
+  Property: String TransactionId
+  Property: Int32 Timeout
+  Property: Payment Payment
+
+Type: PoyntPOSBridge.CryptoUtil
+  Method: String ExportPrivateKey(RSACryptoServiceProvider csp)
+  Method: String ExportPublicKey(RSACryptoServiceProvider csp)
+
+Type: PoyntPOSBridge.PoyntDictionary
+  Property: IEqualityComparer`1 Comparer
+  Property: Int32 Count
+  Property: KeyCollection Keys
+  Property: ValueCollection Values
+  Property: Object Item
+
+Type: PoyntPOSBridge.PairingRequest
+  Method: String get_PairingCode()
+  Method: Void set_PairingCode(String value)
+  Method: String get_PublicKey()
+  Method: Void set_PublicKey(String value)
+  Property: String PairingCode
+  Property: String PublicKey
+
+Type: PoyntPOSBridge.PairDeviceWithKeyRequest
+  Method: PairingRequest get_PairingRequest()
+  Method: Void set_PairingRequest(PairingRequest value)
+  Property: PairingRequest PairingRequest
+
+Type: PoyntPOSBridge.PairDeviceWithKeyResponse
+  Method: String get_EncryptedSecret()
+  Method: Void set_EncryptedSecret(String value)
+  Method: String get_PairingCode()
+  Method: Void set_PairingCode(String value)
+  Property: String EncryptedSecret
+  Property: String PairingCode
+  Property: Dictionary`2 Error
+  Property: Boolean TimedOut
+
+Type: PoyntPOSBridge.PairDeviceRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Property: String PoyntRequestId
+
+Type: PoyntPOSBridge.PairDeviceResponse
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: String get_SerialNumber()
+  Method: Void set_SerialNumber(String value)
+  Property: String Status
+  Property: String PoyntRequestId
+  Property: String SerialNumber
+  Property: Dictionary`2 Error
+  Property: Boolean TimedOut
+
+Type: PoyntPOSBridge.PingRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Property: String PoyntRequestId
+
+Type: PoyntPOSBridge.LoggingLevel
+
+Type: PoyntPOSBridge.LoggerFactory
+  Method: ILogger CreateFileLogger(String filePrefix, LoggingLevel level, String path)
+
+Type: PoyntPOSBridge.ILogger
+  Method: LoggingLevel get_LogLevel()
+  Method: Void set_LogLevel(LoggingLevel value)
+  Method: Boolean get_IsDebugEnabled()
+  Method: Boolean get_IsErrorEnabled()
+  Method: Boolean get_IsFatalEnabled()
+  Method: Boolean get_IsInfoEnabled()
+  Method: Boolean get_IsWarnEnabled()
+  Method: Void Debug(String message)
+  Method: Void Error(String message)
+  Method: Void Fatal(String message)
+  Method: Void Info(String message)
+  Method: Void Warn(String message)
+  Property: LoggingLevel LogLevel
+  Property: Boolean IsDebugEnabled
+  Property: Boolean IsErrorEnabled
+  Property: Boolean IsFatalEnabled
+  Property: Boolean IsInfoEnabled
+  Property: Boolean IsWarnEnabled
+
+Type: PoyntPOSBridge.IJsonSerializer
+
+Type: PoyntPOSBridge.NewtonsoftJsonSerializer
+  Method: String get_ContentType()
+  Method: Void set_ContentType(String value)
+  Method: String get_DateFormat()
+  Method: Void set_DateFormat(String value)
+  Method: String get_Namespace()
+  Method: Void set_Namespace(String value)
+  Method: String get_RootElement()
+  Method: Void set_RootElement(String value)
+  Method: String Serialize(Object obj)
+  Method: T Deserialize(IRestResponse response)
+  Method: NewtonsoftJsonSerializer get_Default()
+  Property: String ContentType
+  Property: String DateFormat
+  Property: String Namespace
+  Property: String RootElement
+  Property: NewtonsoftJsonSerializer Default
+
+Type: PoyntPOSBridge.PoyntPOSApi
+  Method: Int32 get_DefaultTimeoutInMs()
+  Method: Void set_DefaultTimeoutInMs(Int32 value)
+  Method: String get_Key()
+  Method: Void set_Key(String value)
+  Method: String get_TerminalSerial()
+  Method: Void set_TerminalSerial(String value)
+  Method: String get_BusinessName()
+  Method: Void set_BusinessName(String value)
+  Method: Int32 get_RestClientTimeout()
+  Method: Void set_RestClientTimeout(Int32 value)
+  Method: PairDeviceWithKeyResponse PairDeviceWithKey(String name, PairDeviceWithKeyRequest req)
+  Method: PairDeviceResponse PairDevice(String name)
+  Method: Boolean PingDevice()
+  Method: AuthorizeSalesResponse AuthorizeSales(AuthorizeSalesRequest req)
+  Method: AuthorizeSalesResponse AuthorizeAdjustment(AuthorizeAdjustmentRequest req)
+  Method: AuthorizeSalesResponse AuthorizeCompletion(AuthorizeCompletionRequest req)
+  Method: AuthorizeSalesResponse AuthorizeVoid(AuthorizeVoidRequest req)
+  Method: AuthorizeSalesResponse AuthorizeRefund(AuthorizeRefundRequest req)
+  Method: AuthorizeSalesResponse AuthorizeRefund(AuthorizeNonReferencedRefundRequest req)
+  Method: AuthorizeSalesResponse VoiceAuthorizeSales(VoiceAuthorizeSalesRequest req)
+  Method: AuthorizeSalesResponse AuthorizePreSale(AuthorizePreSalesRequest req)
+  Method: AuthorizeSalesResponse PrintReceipt(PrintReceiptRequest req)
+  Method: AuthorizeSalesResponse ShowItemsOnSecondScreen(ShowItemsOnSecondScreenRequest req)
+  Method: ScanDataResponse ScanData(ScanDataRequest req)
+  Method: PaymentFlowState GetPaymentFlowState()
+  Property: Int32 DefaultTimeoutInMs
+  Property: String Key
+  Property: String TerminalSerial
+  Property: String BusinessName
+  Property: Int32 RestClientTimeout
+
+Type: PoyntPOSBridge.StringExtensions
+  Method: Boolean Contains(String source, String toCheck, StringComparison comp)
+
+Type: PoyntPOSBridge.FoundPoyntPOSEventHandler
+  Method: Void Invoke(Object sender, FoundPoyntPOSEventArgs e)
+  Method: IAsyncResult BeginInvoke(Object sender, FoundPoyntPOSEventArgs e, AsyncCallback callback, Object object)
+  Method: Void EndInvoke(IAsyncResult result)
+  Property: MethodInfo Method
+  Property: Object Target
+
+Type: PoyntPOSBridge.FoundPoyntPOSEventArgs
+  Method: String get_IPAddress()
+  Method: Void set_IPAddress(String value)
+  Method: Int32 get_Port()
+  Method: Void set_Port(Int32 value)
+  Method: Boolean get_Suppress()
+  Method: Void set_Suppress(Boolean value)
+  Method: Boolean get_Stop()
+  Method: Void set_Stop(Boolean value)
+  Property: String IPAddress
+  Property: Int32 Port
+  Property: Boolean Suppress
+  Property: Boolean Stop
+
+Type: PoyntPOSBridge.PoyntPOSFinder
+  Method: Void add_FoundPoyntPOSEventHandler(FoundPoyntPOSEventHandler value)
+  Method: Void remove_FoundPoyntPOSEventHandler(FoundPoyntPOSEventHandler value)
+  Method: String get_PoyntServiceName()
+  Method: Void set_PoyntServiceName(String value)
+  Method: Boolean get_Close()
+  Method: Void set_Close(Boolean value)
+  Method: Void StopDiscovery()
+  Method: Void Discover()
+  Property: String PoyntServiceName
+  Property: Boolean Close
+
+Type: PoyntPOSBridge.PoyntResponse
+  Method: Dictionary`2 get_Error()
+  Method: Void set_Error(Dictionary`2 value)
+  Method: Boolean get_TimedOut()
+  Property: Dictionary`2 Error
+  Property: Boolean TimedOut
+
+Type: PoyntPOSBridge.PrintingRequest
+  Method: String get_Content()
+  Method: Void set_Content(String value)
+  Property: String Content
+
+Type: PoyntPOSBridge.PrintReceiptRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: PrintingRequest get_PrintingRequest()
+  Method: Void set_PrintingRequest(PrintingRequest value)
+  Method: PrintReceiptRequest Create(Int32 defaultTimeoutInMs, String content)
+  Property: String PoyntRequestId
+  Property: Int32 Timeout
+  Property: PrintingRequest PrintingRequest
+
+Type: PoyntPOSBridge.RefundPayment
+  Method: Nullable`1 get_Amount()
+  Method: Void set_Amount(Nullable`1 value)
+  Method: List`1 get_References()
+  Method: Void set_References(List`1 value)
+  Property: Nullable`1 Amount
+  Property: List`1 References
+
+Type: PoyntPOSBridge.AuthorizeRefundRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: String get_TransactionId()
+  Method: Void set_TransactionId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: RefundPayment get_Payment()
+  Method: Void set_Payment(RefundPayment value)
+  Method: AuthorizeRefundRequest Create(Int32 timeoutInMs, String transactionId, Nullable`1 amount)
+  Property: String PoyntRequestId
+  Property: String TransactionId
+  Property: Int32 Timeout
+  Property: RefundPayment Payment
+
+Type: PoyntPOSBridge.AuthorizeNonReferencedRefundRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: RefundPayment get_Payment()
+  Method: Void set_Payment(RefundPayment value)
+  Method: AuthorizeNonReferencedRefundRequest Create(Int32 timeoutInMs, Nullable`1 amount)
+  Property: String PoyntRequestId
+  Property: Int32 Timeout
+  Property: RefundPayment Payment
+
+Type: PoyntPOSBridge.CardKeyData
+  Method: String get_Version()
+  Method: Void set_Version(String value)
+  Method: String get_Id()
+  Method: Void set_Id(String value)
+  Property: String Version
+  Property: String Id
+
+Type: PoyntPOSBridge.Card
+  Method: String get_SequenceNumber()
+  Method: Void set_SequenceNumber(String value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_NumberMasked()
+  Method: Void set_NumberMasked(String value)
+  Method: String get_Track3Data()
+  Method: Void set_Track3Data(String value)
+  Method: String get_NumberHashed()
+  Method: Void set_NumberHashed(String value)
+  Method: String get_EncryptedExpirationDate()
+  Method: Void set_EncryptedExpirationDate(String value)
+  Method: Int32 get_ExpirationDate()
+  Method: Void set_ExpirationDate(Int32 value)
+  Method: Int32 get_ExpirationYear()
+  Method: Void set_ExpirationYear(Int32 value)
+  Method: String get_ServiceCode()
+  Method: Void set_ServiceCode(String value)
+  Method: String get_Track2Data()
+  Method: Void set_Track2Data(String value)
+  Method: Int32 get_ExpirationMonth()
+  Method: Void set_ExpirationMonth(Int32 value)
+  Method: String get_KeySerialNumber()
+  Method: Void set_KeySerialNumber(String value)
+  Method: String get_Track1Data()
+  Method: Void set_Track1Data(String value)
+  Method: String get_NumberLast4()
+  Method: Void set_NumberLast4(String value)
+  Method: String get_CardHolderFullName()
+  Method: Void set_CardHolderFullName(String value)
+  Method: String get_CardHolderFirstName()
+  Method: Void set_CardHolderFirstName(String value)
+  Method: String get_CardHolderLastName()
+  Method: Void set_CardHolderLastName(String value)
+  Method: String get_NumberFirst6()
+  Method: Void set_NumberFirst6(String value)
+  Method: List`1 get_Key()
+  Method: Void set_Key(List`1 value)
+  Method: Int32 get_Id()
+  Method: Void set_Id(Int32 value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Method: String get_Number()
+  Method: Void set_Number(String value)
+  Property: String SequenceNumber
+  Property: String Status
+  Property: String NumberMasked
+  Property: String Track3Data
+  Property: String NumberHashed
+  Property: String EncryptedExpirationDate
+  Property: Int32 ExpirationDate
+  Property: Int32 ExpirationYear
+  Property: String ServiceCode
+  Property: String Track2Data
+  Property: Int32 ExpirationMonth
+  Property: String KeySerialNumber
+  Property: String Track1Data
+  Property: String NumberLast4
+  Property: String CardHolderFullName
+  Property: String CardHolderFirstName
+  Property: String CardHolderLastName
+  Property: String NumberFirst6
+  Property: List`1 Key
+  Property: Int32 Id
+  Property: String Type
+  Property: String Number
+
+Type: PoyntPOSBridge.DebitEBTReEntry
+  Method: String get_OrigNetworkId()
+  Method: Void set_OrigNetworkId(String value)
+  Method: String get_OrigTraceNumber()
+  Method: Void set_OrigTraceNumber(String value)
+  Method: String get_OrigRetrievalRefNumber()
+  Method: Void set_OrigRetrievalRefNumber(String value)
+  Method: String get_OrigApprovalCode()
+  Method: Void set_OrigApprovalCode(String value)
+  Method: String get_OrigCreatedAt()
+  Method: Void set_OrigCreatedAt(String value)
+  Property: String OrigNetworkId
+  Property: String OrigTraceNumber
+  Property: String OrigRetrievalRefNumber
+  Property: String OrigApprovalCode
+  Property: String OrigCreatedAt
+
+Type: PoyntPOSBridge.EBTDetails
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Method: String get_ElectronicVoucherSerialNumber()
+  Method: Void set_ElectronicVoucherSerialNumber(String value)
+  Method: String get_ElectronicVoucherApprovalCode()
+  Method: Void set_ElectronicVoucherApprovalCode(String value)
+  Property: String Type
+  Property: String ElectronicVoucherSerialNumber
+  Property: String ElectronicVoucherApprovalCode
+
+Type: PoyntPOSBridge.FundingSourceEntryDetails
+  Method: String get_CustomerPresenceStatus()
+  Method: Void set_CustomerPresenceStatus(String value)
+  Method: String get_EntryMode()
+  Method: Void set_EntryMode(String value)
+  Property: String CustomerPresenceStatus
+  Property: String EntryMode
+
+Type: PoyntPOSBridge.EMVData
+
+Type: PoyntPOSBridge.Address
+  Method: String get_PostalCodeExtension()
+  Method: Void set_PostalCodeExtension(String value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_TerritoryType()
+  Method: Void set_TerritoryType(String value)
+  Method: String get_CountryCode()
+  Method: Void set_CountryCode(String value)
+  Method: String get_Line1()
+  Method: Void set_Line1(String value)
+  Method: String get_Line2()
+  Method: Void set_Line2(String value)
+  Method: String get_UpdatedAt()
+  Method: Void set_UpdatedAt(String value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: String get_City()
+  Method: Void set_City(String value)
+  Method: String get_Territory()
+  Method: Void set_Territory(String value)
+  Method: String get_PostalCode()
+  Method: Void set_PostalCode(String value)
+  Method: Int32 get_Id()
+  Method: Void set_Id(Int32 value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Property: String PostalCodeExtension
+  Property: String Status
+  Property: String TerritoryType
+  Property: String CountryCode
+  Property: String Line1
+  Property: String Line2
+  Property: String UpdatedAt
+  Property: String CreatedAt
+  Property: String City
+  Property: String Territory
+  Property: String PostalCode
+  Property: Int32 Id
+  Property: String Type
+
+Type: PoyntPOSBridge.VerificationData
+  Method: String get_AdditionalIdType()
+  Method: Void set_AdditionalIdType(String value)
+  Method: String get_AdditionalIdRefNumber()
+  Method: Void set_AdditionalIdRefNumber(String value)
+  Method: String get_CvSkipReason()
+  Method: Void set_CvSkipReason(String value)
+  Method: Address get_CardHolderBillingAddress()
+  Method: Void set_CardHolderBillingAddress(Address value)
+  Method: String get_CvData()
+  Method: Void set_CvData(String value)
+  Method: String get_Pin()
+  Method: Void set_Pin(String value)
+  Method: String get_KeySerialNumber()
+  Method: Void set_KeySerialNumber(String value)
+  Property: String AdditionalIdType
+  Property: String AdditionalIdRefNumber
+  Property: String CvSkipReason
+  Property: Address CardHolderBillingAddress
+  Property: String CvData
+  Property: String Pin
+  Property: String KeySerialNumber
+
+Type: PoyntPOSBridge.CustomFundingSource
+  Method: String get_Name()
+  Method: Void set_Name(String value)
+  Method: String get_Provider()
+  Method: Void set_Provider(String value)
+  Method: String get_Processor()
+  Method: Void set_Processor(String value)
+  Method: String get_AccountId()
+  Method: Void set_AccountId(String value)
+  Method: String get_Description()
+  Method: Void set_Description(String value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Property: String Name
+  Property: String Provider
+  Property: String Processor
+  Property: String AccountId
+  Property: String Description
+  Property: String Type
+
+Type: PoyntPOSBridge.FundingSource
+  Method: DebitEBTReEntry get_DebutEBTReEntryDetails()
+  Method: Void set_DebutEBTReEntryDetails(DebitEBTReEntry value)
+  Method: Card get_Card()
+  Method: Void set_Card(Card value)
+  Method: String get_AccountType()
+  Method: Void set_AccountType(String value)
+  Method: EBTDetails get_EbtDetails()
+  Method: Void set_EbtDetails(EBTDetails value)
+  Method: FundingSourceEntryDetails get_EntryDetails()
+  Method: Void set_EntryDetails(FundingSourceEntryDetails value)
+  Method: EMVData get_EmvData()
+  Method: Void set_EmvData(EMVData value)
+  Method: VerificationData get_VerificationData()
+  Method: Void set_VerificationData(VerificationData value)
+  Method: CustomFundingSource get_CustomFundingSource()
+  Method: Void set_CustomFundingSource(CustomFundingSource value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Property: DebitEBTReEntry DebutEBTReEntryDetails
+  Property: Card Card
+  Property: String AccountType
+  Property: EBTDetails EbtDetails
+  Property: FundingSourceEntryDetails EntryDetails
+  Property: EMVData EmvData
+  Property: VerificationData VerificationData
+  Property: CustomFundingSource CustomFundingSource
+  Property: String Type
+
+Type: PoyntPOSBridge.TransactionReason
+  Method: String get_Program()
+  Method: Void set_Program(String value)
+  Method: List`1 get_ProgramFor()
+  Method: Void set_ProgramFor(List`1 value)
+  Property: String Program
+  Property: List`1 ProgramFor
+
+Type: PoyntPOSBridge.TransactionAmounts
+  Method: String get_Currency()
+  Method: Void set_Currency(String value)
+  Method: Int32 get_TransactionAmount()
+  Method: Void set_TransactionAmount(Int32 value)
+  Method: Int32 get_OrderAmount()
+  Method: Void set_OrderAmount(Int32 value)
+  Method: Int32 get_TipAmount()
+  Method: Void set_TipAmount(Int32 value)
+  Method: Int32 get_CashbackAmount()
+  Method: Void set_CashbackAmount(Int32 value)
+  Property: String Currency
+  Property: Int32 TransactionAmount
+  Property: Int32 OrderAmount
+  Property: Int32 TipAmount
+  Property: Int32 CashbackAmount
+
+Type: PoyntPOSBridge.TransactionReference
+  Method: String get_CustomType()
+  Method: Void set_CustomType(String value)
+  Method: String get_Id()
+  Method: Void set_Id(String value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Property: String CustomType
+  Property: String Id
+  Property: String Type
+
+Type: PoyntPOSBridge.Phone
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_AreaCode()
+  Method: Void set_AreaCode(String value)
+  Method: String get_UpdatedAt()
+  Method: Void set_UpdatedAt(String value)
+  Method: String get_ItuCountryCode()
+  Method: Void set_ItuCountryCode(String value)
+  Method: String get_LocalPhoneNumber()
+  Method: Void set_LocalPhoneNumber(String value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: String get_ExtensionNumber()
+  Method: Void set_ExtensionNumber(String value)
+  Method: Int32 get_Id()
+  Method: Void set_Id(Int32 value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Property: String Status
+  Property: String AreaCode
+  Property: String UpdatedAt
+  Property: String ItuCountryCode
+  Property: String LocalPhoneNumber
+  Property: String CreatedAt
+  Property: String ExtensionNumber
+  Property: Int32 Id
+  Property: String Type
+
+Type: PoyntPOSBridge.PoyntLoyaltyCampaign
+  Method: Int32 get_BusinessLoyaltyId()
+  Method: Void set_BusinessLoyaltyId(Int32 value)
+  Method: Int32 get_Points()
+  Method: Void set_Points(Int32 value)
+  Method: Int32 get_PointsRequired()
+  Method: Void set_PointsRequired(Int32 value)
+  Method: Int32 get_TotalPoints()
+  Method: Void set_TotalPoints(Int32 value)
+  Method: Int32 get_TotalSpend()
+  Method: Void set_TotalSpend(Int32 value)
+  Method: Int32 get_LastIncrement()
+  Method: Void set_LastIncrement(Int32 value)
+  Method: String get_CampaignName()
+  Method: Void set_CampaignName(String value)
+  Method: String get_CampaignDescription()
+  Method: Void set_CampaignDescription(String value)
+  Method: String get_LoyaltyType()
+  Method: Void set_LoyaltyType(String value)
+  Method: String get_Tier()
+  Method: Void set_Tier(String value)
+  Method: String get_NextTier()
+  Method: Void set_NextTier(String value)
+  Method: String get_LoyaltyUnit()
+  Method: Void set_LoyaltyUnit(String value)
+  Method: String get_RewardDescription()
+  Method: Void set_RewardDescription(String value)
+  Property: Int32 BusinessLoyaltyId
+  Property: Int32 Points
+  Property: Int32 PointsRequired
+  Property: Int32 TotalPoints
+  Property: Int32 TotalSpend
+  Property: Int32 LastIncrement
+  Property: String CampaignName
+  Property: String CampaignDescription
+  Property: String LoyaltyType
+  Property: String Tier
+  Property: String NextTier
+  Property: String LoyaltyUnit
+  Property: String RewardDescription
+
+Type: PoyntPOSBridge.PoyntLoyaltyReward
+  Method: Int32 get_BusinessLoyaltyId()
+  Method: Void set_BusinessLoyaltyId(Int32 value)
+  Method: Int32 get_RewardId()
+  Method: Void set_RewardId(Int32 value)
+  Method: Int32 get_Value()
+  Method: Void set_Value(Int32 value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Method: String get_RewardDescription()
+  Method: Void set_RewardDescription(String value)
+  Method: String get_PreText()
+  Method: Void set_PreText(String value)
+  Method: String get_PostText()
+  Method: Void set_PostText(String value)
+  Method: Boolean get_NewReward()
+  Method: Void set_NewReward(Boolean value)
+  Property: Int32 BusinessLoyaltyId
+  Property: Int32 RewardId
+  Property: Int32 Value
+  Property: String Status
+  Property: String Type
+  Property: String RewardDescription
+  Property: String PreText
+  Property: String PostText
+  Property: Boolean NewReward
+
+Type: PoyntPOSBridge.PoyntLoyalty
+  Method: Int32 get_LoyaltyId()
+  Method: Void set_LoyaltyId(Int32 value)
+  Method: String get_ExternalId()
+  Method: Void set_ExternalId(String value)
+  Method: List`1 get_Loyalty()
+  Method: Void set_Loyalty(List`1 value)
+  Method: List`1 get_Reward()
+  Method: Void set_Reward(List`1 value)
+  Property: Int32 LoyaltyId
+  Property: String ExternalId
+  Property: List`1 Loyalty
+  Property: List`1 Reward
+
+Type: PoyntPOSBridge.ProviderVerification
+  Method: String get_Signature()
+  Method: Void set_Signature(String value)
+  Method: String get_PublicKeyHash()
+  Method: Void set_PublicKeyHash(String value)
+  Property: String Signature
+  Property: String PublicKeyHash
+
+Type: PoyntPOSBridge.AVSResult
+  Method: String get_AddressResult()
+  Method: Void set_AddressResult(String value)
+  Method: String get_StateResult()
+  Method: Void set_StateResult(String value)
+  Method: String get_CountryResult()
+  Method: Void set_CountryResult(String value)
+  Method: String get_PhoneResult()
+  Method: Void set_PhoneResult(String value)
+  Method: String get_CardHolderNameResult()
+  Method: Void set_CardHolderNameResult(String value)
+  Method: String get_CityResult()
+  Method: Void set_CityResult(String value)
+  Method: String get_ActualResult()
+  Method: Void set_ActualResult(String value)
+  Method: String get_PostalCodeResult()
+  Method: Void set_PostalCodeResult(String value)
+  Property: String AddressResult
+  Property: String StateResult
+  Property: String CountryResult
+  Property: String PhoneResult
+  Property: String CardHolderNameResult
+  Property: String CityResult
+  Property: String ActualResult
+  Property: String PostalCodeResult
+
+Type: PoyntPOSBridge.ProcessorResponse
+  Method: String get_CvActualResult()
+  Method: Void set_CvActualResult(String value)
+  Method: String get_StatusCode()
+  Method: Void set_StatusCode(String value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: Int32 get_RemainingBalance()
+  Method: Void set_RemainingBalance(Int32 value)
+  Method: String get_RetrievalRefNum()
+  Method: Void set_RetrievalRefNum(String value)
+  Method: String get_CardToken()
+  Method: Void set_CardToken(String value)
+  Method: PoyntDictionary get_EmvTags()
+  Method: Void set_EmvTags(PoyntDictionary value)
+  Method: ProviderVerification get_ProviderVerification()
+  Method: Void set_ProviderVerification(ProviderVerification value)
+  Method: String get_BatchId()
+  Method: Void set_BatchId(String value)
+  Method: String get_CvResult()
+  Method: Void set_CvResult(String value)
+  Method: AVSResult get_AvsResult()
+  Method: Void set_AvsResult(AVSResult value)
+  Method: String get_TransactionId()
+  Method: Void set_TransactionId(String value)
+  Method: String get_Processor()
+  Method: Void set_Processor(String value)
+  Method: String get_Acquirer()
+  Method: Void set_Acquirer(String value)
+  Method: Int32 get_ApprovedAmount()
+  Method: Void set_ApprovedAmount(Int32 value)
+  Method: String get_StatusMessage()
+  Method: Void set_StatusMessage(String value)
+  Method: String get_ApprovalCode()
+  Method: Void set_ApprovalCode(String value)
+  Property: String CvActualResult
+  Property: String StatusCode
+  Property: String Status
+  Property: Int32 RemainingBalance
+  Property: String RetrievalRefNum
+  Property: String CardToken
+  Property: PoyntDictionary EmvTags
+  Property: ProviderVerification ProviderVerification
+  Property: String BatchId
+  Property: String CvResult
+  Property: AVSResult AvsResult
+  Property: String TransactionId
+  Property: String Processor
+  Property: String Acquirer
+  Property: Int32 ApprovedAmount
+  Property: String StatusMessage
+  Property: String ApprovalCode
+
+Type: PoyntPOSBridge.ClientContext
+  Method: String get_StoreAddressTerritory()
+  Method: Void set_StoreAddressTerritory(String value)
+  Method: String get_StoreAddressCity()
+  Method: Void set_StoreAddressCity(String value)
+  Method: String get_StoreTimezone()
+  Method: Void set_StoreTimezone(String value)
+  Method: String get_Source()
+  Method: Void set_Source(String value)
+  Method: String get_TransactionInstruction()
+  Method: Void set_TransactionInstruction(String value)
+  Method: String get_BusinessType()
+  Method: Void set_BusinessType(String value)
+  Method: String get_Mid()
+  Method: Void set_Mid(String value)
+  Method: String get_Tid()
+  Method: Void set_Tid(String value)
+  Method: String get_BusinessId()
+  Method: Void set_BusinessId(String value)
+  Method: String get_StoreId()
+  Method: Void set_StoreId(String value)
+  Method: String get_StoreDeviceId()
+  Method: Void set_StoreDeviceId(String value)
+  Method: String get_TransmissionAtLocal()
+  Method: Void set_TransmissionAtLocal(String value)
+  Method: String get_Mcc()
+  Method: Void set_Mcc(String value)
+  Method: String get_EmployeeUserId()
+  Method: Void set_EmployeeUserId(String value)
+  Method: String get_SourceApp()
+  Method: Void set_SourceApp(String value)
+  Property: String StoreAddressTerritory
+  Property: String StoreAddressCity
+  Property: String StoreTimezone
+  Property: String Source
+  Property: String TransactionInstruction
+  Property: String BusinessType
+  Property: String Mid
+  Property: String Tid
+  Property: String BusinessId
+  Property: String StoreId
+  Property: String StoreDeviceId
+  Property: String TransmissionAtLocal
+  Property: String Mcc
+  Property: String EmployeeUserId
+  Property: String SourceApp
+
+Type: PoyntPOSBridge.ExchangeRate
+  Method: String get_CardCurrency()
+  Method: Void set_CardCurrency(String value)
+  Method: String get_TxnCurrency()
+  Method: Void set_TxnCurrency(String value)
+  Method: String get_Provider()
+  Method: Void set_Provider(String value)
+  Method: String get_MarkupPercentage()
+  Method: Void set_MarkupPercentage(String value)
+  Method: String get_Signature()
+  Method: Void set_Signature(String value)
+  Method: String get_BusinessId()
+  Method: Void set_BusinessId(String value)
+  Method: String get_RequestedAt()
+  Method: Void set_RequestedAt(String value)
+  Method: Int64 get_Rate()
+  Method: Void set_Rate(Int64 value)
+  Method: Int64 get_RatePrecision()
+  Method: Void set_RatePrecision(Int64 value)
+  Method: Int64 get_CardAmount()
+  Method: Void set_CardAmount(Int64 value)
+  Method: Int64 get_TxnAmount()
+  Method: Void set_TxnAmount(Int64 value)
+  Property: String CardCurrency
+  Property: String TxnCurrency
+  Property: String Provider
+  Property: String MarkupPercentage
+  Property: String Signature
+  Property: String BusinessId
+  Property: String RequestedAt
+  Property: Int64 Rate
+  Property: Int64 RatePrecision
+  Property: Int64 CardAmount
+  Property: Int64 TxnAmount
+
+Type: PoyntPOSBridge.AdjustmentRecord
+  Method: TransactionAmounts get_Amounts()
+  Method: Void set_Amounts(TransactionAmounts value)
+  Method: TransactionAmounts get_AmountChanges()
+  Method: Void set_AmountChanges(TransactionAmounts value)
+  Method: Int32 get_Sequence()
+  Method: Void set_Sequence(Int32 value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: ProcessorResponse get_ProcessorResponse()
+  Method: Void set_ProcessorResponse(ProcessorResponse value)
+  Method: TransactionReason get_Reason()
+  Method: Void set_Reason(TransactionReason value)
+  Method: Boolean get_SignatureCaptured()
+  Method: Void set_SignatureCaptured(Boolean value)
+  Method: List`1 get_Signature()
+  Method: Void set_Signature(List`1 value)
+  Method: ExchangeRate get_ExchangeRate()
+  Method: Void set_ExchangeRate(ExchangeRate value)
+  Property: TransactionAmounts Amounts
+  Property: TransactionAmounts AmountChanges
+  Property: Int32 Sequence
+  Property: String CreatedAt
+  Property: ProcessorResponse ProcessorResponse
+  Property: TransactionReason Reason
+  Property: Boolean SignatureCaptured
+  Property: List`1 Signature
+  Property: ExchangeRate ExchangeRate
+
+Type: PoyntPOSBridge.Transaction
+  Method: String get_Action()
+  Method: Void set_Action(String value)
+  Method: TransactionReason get_Reason()
+  Method: Void set_Reason(TransactionReason value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: List`1 get_Links()
+  Method: Void set_Links(List`1 value)
+  Method: FundingSource get_FundingSource()
+  Method: Void set_FundingSource(FundingSource value)
+  Method: String get_ParentId()
+  Method: Void set_ParentId(String value)
+  Method: TransactionAmounts get_Amounts()
+  Method: Void set_Amounts(TransactionAmounts value)
+  Method: List`1 get_References()
+  Method: Void set_References(List`1 value)
+  Method: Int32 get_CustomerUserId()
+  Method: Void set_CustomerUserId(Int32 value)
+  Method: String get_StayType()
+  Method: Void set_StayType(String value)
+  Method: Phone get_ReceiptPhone()
+  Method: Void set_ReceiptPhone(Phone value)
+  Method: String get_ReceiptEmailAddress()
+  Method: Void set_ReceiptEmailAddress(String value)
+  Method: String get_TransactionNumber()
+  Method: Void set_TransactionNumber(String value)
+  Method: String get_Notes()
+  Method: Void set_Notes(String value)
+  Method: String get_UpdatedAt()
+  Method: Void set_UpdatedAt(String value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: PoyntLoyalty get_PoyntLoyalty()
+  Method: Void set_PoyntLoyalty(PoyntLoyalty value)
+  Method: ProcessorResponse get_ProcessorResponse()
+  Method: Void set_ProcessorResponse(ProcessorResponse value)
+  Method: String get_ApprovalCode()
+  Method: Void set_ApprovalCode(String value)
+  Method: ClientContext get_Context()
+  Method: Void set_Context(ClientContext value)
+  Method: String get_Id()
+  Method: Void set_Id(String value)
+  Method: List`1 get_Signature()
+  Method: Void set_Signature(List`1 value)
+  Method: Boolean get_SignatureRequired()
+  Method: Void set_SignatureRequired(Boolean value)
+  Method: Boolean get_SignatureCaptured()
+  Method: Void set_SignatureCaptured(Boolean value)
+  Method: Boolean get_PinCaptured()
+  Method: Void set_PinCaptured(Boolean value)
+  Method: Boolean get_Adjusted()
+  Method: Void set_Adjusted(Boolean value)
+  Method: Boolean get_AmountsAdjusted()
+  Method: Void set_AmountsAdjusted(Boolean value)
+  Method: Boolean get_AuthOnly()
+  Method: Void set_AuthOnly(Boolean value)
+  Method: Boolean get_PartiallyApproved()
+  Method: Void set_PartiallyApproved(Boolean value)
+  Method: Boolean get_ActionVoid()
+  Method: Void set_ActionVoid(Boolean value)
+  Method: Boolean get_Voided()
+  Method: Void set_Voided(Boolean value)
+  Method: Boolean get_Settled()
+  Method: Void set_Settled(Boolean value)
+  Method: List`1 get_AdjustmentHistory()
+  Method: Void set_AdjustmentHistory(List`1 value)
+  Property: String Action
+  Property: TransactionReason Reason
+  Property: String Status
+  Property: List`1 Links
+  Property: FundingSource FundingSource
+  Property: String ParentId
+  Property: TransactionAmounts Amounts
+  Property: List`1 References
+  Property: Int32 CustomerUserId
+  Property: String StayType
+  Property: Phone ReceiptPhone
+  Property: String ReceiptEmailAddress
+  Property: String TransactionNumber
+  Property: String Notes
+  Property: String UpdatedAt
+  Property: String CreatedAt
+  Property: PoyntLoyalty PoyntLoyalty
+  Property: ProcessorResponse ProcessorResponse
+  Property: String ApprovalCode
+  Property: ClientContext Context
+  Property: String Id
+  Property: List`1 Signature
+  Property: Boolean SignatureRequired
+  Property: Boolean SignatureCaptured
+  Property: Boolean PinCaptured
+  Property: Boolean Adjusted
+  Property: Boolean AmountsAdjusted
+  Property: Boolean AuthOnly
+  Property: Boolean PartiallyApproved
+  Property: Boolean ActionVoid
+  Property: Boolean Voided
+  Property: Boolean Settled
+  Property: List`1 AdjustmentHistory
+
+Type: PoyntPOSBridge.Link
+  Method: String get_Rel()
+  Method: Void set_Rel(String value)
+  Method: String get_Href()
+  Method: Void set_Href(String value)
+  Method: String get_Method()
+  Method: Void set_Method(String value)
+  Property: String Rel
+  Property: String Href
+  Property: String Method
+
+Type: PoyntPOSBridge.OrderStatuses
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_TransactionStatusSummary()
+  Method: Void set_TransactionStatusSummary(String value)
+  Method: String get_FulfillmentStatus()
+  Method: Void set_FulfillmentStatus(String value)
+  Property: String Status
+  Property: String TransactionStatusSummary
+  Property: String FulfillmentStatus
+
+Type: PoyntPOSBridge.Variant
+  Method: String get_PublicCredentialValue()
+  Method: Void set_PublicCredentialValue(String value)
+  Method: Int32 get_Id()
+  Method: Void set_Id(Int32 value)
+  Method: String get_PrivateCredentialValue()
+  Method: Void set_PrivateCredentialValue(String value)
+  Method: String get_PrivateCredentialSalt()
+  Method: Void set_PrivateCredentialSalt(String value)
+  Method: String get_PublicCredentialType()
+  Method: Void set_PublicCredentialType(String value)
+  Property: String PublicCredentialValue
+  Property: Int32 Id
+  Property: String PrivateCredentialValue
+  Property: String PrivateCredentialSalt
+  Property: String PublicCredentialType
+
+Type: PoyntPOSBridge.Fee
+  Method: String get_Name()
+  Method: Void set_Name(String value)
+  Method: Int32 get_Id()
+  Method: Void set_Id(Int32 value)
+  Method: Int32 get_Amount()
+  Method: Void set_Amount(Int32 value)
+  Method: Single get_Percentage()
+  Method: Void set_Percentage(Single value)
+  Property: String Name
+  Property: Int32 Id
+  Property: Int32 Amount
+  Property: Single Percentage
+
+Type: PoyntPOSBridge.Discount
+  Method: Int32 get_Amount()
+  Method: Void set_Amount(Int32 value)
+  Method: String get_CustomName()
+  Method: Void set_CustomName(String value)
+  Method: Single get_Percentage()
+  Method: Void set_Percentage(Single value)
+  Method: String get_Id()
+  Method: Void set_Id(String value)
+  Method: String get_Provider()
+  Method: Void set_Provider(String value)
+  Method: String get_Processor()
+  Method: Void set_Processor(String value)
+  Method: ProcessorResponse get_ProcessorResponse()
+  Method: Void set_ProcessorResponse(ProcessorResponse value)
+  Property: Int32 Amount
+  Property: String CustomName
+  Property: Single Percentage
+  Property: String Id
+  Property: String Provider
+  Property: String Processor
+  Property: ProcessorResponse ProcessorResponse
+
+Type: PoyntPOSBridge.Tax
+  Method: String get_Description()
+  Method: Void set_Description(String value)
+  Method: Double get_Rate()
+  Method: Void set_Rate(Double value)
+  Method: Int32 get_Amount()
+  Method: Void set_Amount(Int32 value)
+  Method: String get_BusinessId()
+  Method: Void set_BusinessId(String value)
+  Method: String get_UpdatedAt()
+  Method: Void set_UpdatedAt(String value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: String get_Name()
+  Method: Void set_Name(String value)
+  Method: String get_Id()
+  Method: Void set_Id(String value)
+  Method: String get_Type()
+  Method: Void set_Type(String value)
+  Property: String Description
+  Property: Double Rate
+  Property: Int32 Amount
+  Property: String BusinessId
+  Property: String UpdatedAt
+  Property: String CreatedAt
+  Property: String Name
+  Property: String Id
+  Property: String Type
+
+Type: PoyntPOSBridge.OrderItem
+  Method: String get_ClientNotes()
+  Method: Void set_ClientNotes(String value)
+  Method: String get_FulfillmentInstruction()
+  Method: Void set_FulfillmentInstruction(String value)
+  Method: String get_ServiceStartAt()
+  Method: Void set_ServiceStartAt(String value)
+  Method: String get_ServiceEndAt()
+  Method: Void set_ServiceEndAt(String value)
+  Method: Boolean get_TaxExempted()
+  Method: Void set_TaxExempted(Boolean value)
+  Method: Single get_Quantity()
+  Method: Void set_Quantity(Single value)
+  Method: Int32 get_UnitPrice()
+  Method: Void set_UnitPrice(Int32 value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: Int32 get_Id()
+  Method: Void set_Id(Int32 value)
+  Method: String get_Details()
+  Method: Void set_Details(String value)
+  Method: Int32 get_Tax()
+  Method: Void set_Tax(Int32 value)
+  Method: Int32 get_Fee()
+  Method: Void set_Fee(Int32 value)
+  Method: Int32 get_Discount()
+  Method: Void set_Discount(Int32 value)
+  Method: List`1 get_SelectedVariants()
+  Method: Void set_SelectedVariants(List`1 value)
+  Method: List`1 get_Fees()
+  Method: Void set_Fees(List`1 value)
+  Method: List`1 get_Discounts()
+  Method: Void set_Discounts(List`1 value)
+  Method: List`1 get_Taxes()
+  Method: Void set_Taxes(List`1 value)
+  Method: String get_ProductId()
+  Method: Void set_ProductId(String value)
+  Method: String get_Sku()
+  Method: Void set_Sku(String value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: String get_UpdatedAt()
+  Method: Void set_UpdatedAt(String value)
+  Method: String get_UnitOfMeasure()
+  Method: Void set_UnitOfMeasure(String value)
+  Method: String get_Name()
+  Method: Void set_Name(String value)
+  Property: String ClientNotes
+  Property: String FulfillmentInstruction
+  Property: String ServiceStartAt
+  Property: String ServiceEndAt
+  Property: Boolean TaxExempted
+  Property: Single Quantity
+  Property: Int32 UnitPrice
+  Property: String Status
+  Property: Int32 Id
+  Property: String Details
+  Property: Int32 Tax
+  Property: Int32 Fee
+  Property: Int32 Discount
+  Property: List`1 SelectedVariants
+  Property: List`1 Fees
+  Property: List`1 Discounts
+  Property: List`1 Taxes
+  Property: String ProductId
+  Property: String Sku
+  Property: String CreatedAt
+  Property: String UpdatedAt
+  Property: String UnitOfMeasure
+  Property: String Name
+
+Type: PoyntPOSBridge.OrderAmounts
+  Method: String get_Currency()
+  Method: Void set_Currency(String value)
+  Method: Int32 get_SubTotal()
+  Method: Void set_SubTotal(Int32 value)
+  Method: Int32 get_DiscountTotal()
+  Method: Void set_DiscountTotal(Int32 value)
+  Method: Int32 get_FeeTotal()
+  Method: Void set_FeeTotal(Int32 value)
+  Method: Int32 get_TaxTotal()
+  Method: Void set_TaxTotal(Int32 value)
+  Method: Int32 get_NetTotal()
+  Method: Void set_NetTotal(Int32 value)
+  Method: TransactionAmounts get_AuthorizedTotals()
+  Method: Void set_AuthorizedTotals(TransactionAmounts value)
+  Method: TransactionAmounts get_VoidedTotals()
+  Method: Void set_VoidedTotals(TransactionAmounts value)
+  Method: TransactionAmounts get_CapturedTotals()
+  Method: Void set_CapturedTotals(TransactionAmounts value)
+  Method: TransactionAmounts get_RefundedTotals()
+  Method: Void set_RefundedTotals(TransactionAmounts value)
+  Method: TransactionAmounts get_SavedTotals()
+  Method: Void set_SavedTotals(TransactionAmounts value)
+  Property: String Currency
+  Property: Int32 SubTotal
+  Property: Int32 DiscountTotal
+  Property: Int32 FeeTotal
+  Property: Int32 TaxTotal
+  Property: Int32 NetTotal
+  Property: TransactionAmounts AuthorizedTotals
+  Property: TransactionAmounts VoidedTotals
+  Property: TransactionAmounts CapturedTotals
+  Property: TransactionAmounts RefundedTotals
+  Property: TransactionAmounts SavedTotals
+
+Type: PoyntPOSBridge.Order
+  Method: String get_OrderNumber()
+  Method: Void set_OrderNumber(String value)
+  Method: OrderStatuses get_Statuses()
+  Method: Void set_Statuses(OrderStatuses value)
+  Method: List`1 get_Links()
+  Method: Void set_Links(List`1 value)
+  Method: List`1 get_Items()
+  Method: Void set_Items(List`1 value)
+  Method: List`1 get_Discounts()
+  Method: Void set_Discounts(List`1 value)
+  Method: List`1 get_Fees()
+  Method: Void set_Fees(List`1 value)
+  Method: String get_ParentId()
+  Method: Void set_ParentId(String value)
+  Method: OrderAmounts get_Amounts()
+  Method: Void set_Amounts(OrderAmounts value)
+  Method: Int32 get_CustomerUserId()
+  Method: Void set_CustomerUserId(Int32 value)
+  Method: String get_StayType()
+  Method: Void set_StayType(String value)
+  Method: String get_Notes()
+  Method: Void set_Notes(String value)
+  Method: String get_UpdatedAt()
+  Method: Void set_UpdatedAt(String value)
+  Method: String get_CreatedAt()
+  Method: Void set_CreatedAt(String value)
+  Method: ClientContext get_Context()
+  Method: Void set_Context(ClientContext value)
+  Method: String get_Id()
+  Method: Void set_Id(String value)
+  Property: String OrderNumber
+  Property: OrderStatuses Statuses
+  Property: List`1 Links
+  Property: List`1 Items
+  Property: List`1 Discounts
+  Property: List`1 Fees
+  Property: String ParentId
+  Property: OrderAmounts Amounts
+  Property: Int32 CustomerUserId
+  Property: String StayType
+  Property: String Notes
+  Property: String UpdatedAt
+  Property: String CreatedAt
+  Property: ClientContext Context
+  Property: String Id
+
+Type: PoyntPOSBridge.Payment
+  Method: String get_Currency()
+  Method: Void set_Currency(String value)
+  Method: String get_ReferenceId()
+  Method: Void set_ReferenceId(String value)
+  Method: String get_OrderId()
+  Method: Void set_OrderId(String value)
+  Method: Order get_Order()
+  Method: Void set_Order(Order value)
+  Method: Int32 get_Amount()
+  Method: Void set_Amount(Int32 value)
+  Method: Int32 get_TipAmount()
+  Method: Void set_TipAmount(Int32 value)
+  Method: Int32 get_CashbackAmount()
+  Method: Void set_CashbackAmount(Int32 value)
+  Method: Boolean get_DisableCash()
+  Method: Void set_DisableCash(Boolean value)
+  Method: Boolean get_DisableDebitCards()
+  Method: Void set_DisableDebitCards(Boolean value)
+  Method: Boolean get_DisableTip()
+  Method: Void set_DisableTip(Boolean value)
+  Method: Boolean get_SkipReceiptScreen()
+  Method: Void set_SkipReceiptScreen(Boolean value)
+  Method: Boolean get_SkipSignatureScreen()
+  Method: Void set_SkipSignatureScreen(Boolean value)
+  Method: Boolean get_CashOnly()
+  Method: Void set_CashOnly(Boolean value)
+  Method: Boolean get_MultiTender()
+  Method: Void set_MultiTender(Boolean value)
+  Method: Boolean get_CreditOnly()
+  Method: Void set_CreditOnly(Boolean value)
+  Method: Boolean get_ManualEntry()
+  Method: Void set_ManualEntry(Boolean value)
+  Method: List`1 get_Transactions()
+  Method: Void set_Transactions(List`1 value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_Notes()
+  Method: Void set_Notes(String value)
+  Method: List`1 get_References()
+  Method: Void set_References(List`1 value)
+  Method: Nullable`1 get_DisableEMVCT()
+  Method: Void set_DisableEMVCT(Nullable`1 value)
+  Method: Nullable`1 get_DisableEbtCashBenefits()
+  Method: Void set_DisableEbtCashBenefits(Nullable`1 value)
+  Method: Nullable`1 get_DisableEbtFoodStamps()
+  Method: Void set_DisableEbtFoodStamps(Nullable`1 value)
+  Method: Nullable`1 get_DisableEbtVoucher()
+  Method: Void set_DisableEbtVoucher(Nullable`1 value)
+  Method: Nullable`1 get_DisableMSR()
+  Method: Void set_DisableMSR(Nullable`1 value)
+  Method: Nullable`1 get_DisableManual()
+  Method: Void set_DisableManual(Nullable`1 value)
+  Method: Nullable`1 get_DisableOther()
+  Method: Void set_DisableOther(Nullable`1 value)
+  Method: Nullable`1 get_DisablePaymentOptions()
+  Method: Void set_DisablePaymentOptions(Nullable`1 value)
+  Method: Nullable`1 get_DisableDCC()
+  Method: Void set_DisableDCC(Nullable`1 value)
+  Method: Nullable`1 get_IsBalanceInquiry()
+  Method: Void set_IsBalanceInquiry(Nullable`1 value)
+  Method: Nullable`1 get_NonReferencedCredit()
+  Method: Void set_NonReferencedCredit(Nullable`1 value)
+  Method: Nullable`1 get_DisableCheck()
+  Method: Void set_DisableCheck(Nullable`1 value)
+  Method: Nullable`1 get_DisableChangeAmount()
+  Method: Void set_DisableChangeAmount(Nullable`1 value)
+  Method: Nullable`1 get_OfflineAuth()
+  Method: Void set_OfflineAuth(Nullable`1 value)
+  Method: Nullable`1 get_DebitOnly()
+  Method: Void set_DebitOnly(Nullable`1 value)
+  Method: Nullable`1 get_ReadCardDataOnly()
+  Method: Void set_ReadCardDataOnly(Nullable`1 value)
+  Method: Nullable`1 get_Debit()
+  Method: Void set_Debit(Nullable`1 value)
+  Method: Nullable`1 get_DisableEMVCL()
+  Method: Void set_DisableEMVCL(Nullable`1 value)
+  Method: Nullable`1 get_AuthzOnly()
+  Method: Void set_AuthzOnly(Nullable`1 value)
+  Method: Nullable`1 get_ApplicationIndex()
+  Method: Void set_ApplicationIndex(Nullable`1 value)
+  Method: Nullable`1 get_DisableDebit()
+  Method: Void set_DisableDebit(Nullable`1 value)
+  Method: Nullable`1 get_AdjustToAddCharges()
+  Method: Void set_AdjustToAddCharges(Nullable`1 value)
+  Method: Nullable`1 get_VerifyOnly()
+  Method: Void set_VerifyOnly(Nullable`1 value)
+  Method: Nullable`1 get_Voucher()
+  Method: Void set_Voucher(Nullable`1 value)
+  Property: String Currency
+  Property: String ReferenceId
+  Property: String OrderId
+  Property: Order Order
+  Property: Int32 Amount
+  Property: Int32 TipAmount
+  Property: Int32 CashbackAmount
+  Property: Boolean DisableCash
+  Property: Boolean DisableDebitCards
+  Property: Boolean DisableTip
+  Property: Boolean SkipReceiptScreen
+  Property: Boolean SkipSignatureScreen
+  Property: Boolean CashOnly
+  Property: Boolean MultiTender
+  Property: Boolean CreditOnly
+  Property: Boolean ManualEntry
+  Property: List`1 Transactions
+  Property: String Status
+  Property: String Notes
+  Property: List`1 References
+  Property: Nullable`1 DisableEMVCT
+  Property: Nullable`1 DisableEbtCashBenefits
+  Property: Nullable`1 DisableEbtFoodStamps
+  Property: Nullable`1 DisableEbtVoucher
+  Property: Nullable`1 DisableMSR
+  Property: Nullable`1 DisableManual
+  Property: Nullable`1 DisableOther
+  Property: Nullable`1 DisablePaymentOptions
+  Property: Nullable`1 DisableDCC
+  Property: Nullable`1 IsBalanceInquiry
+  Property: Nullable`1 NonReferencedCredit
+  Property: Nullable`1 DisableCheck
+  Property: Nullable`1 DisableChangeAmount
+  Property: Nullable`1 OfflineAuth
+  Property: Nullable`1 DebitOnly
+  Property: Nullable`1 ReadCardDataOnly
+  Property: Nullable`1 Debit
+  Property: Nullable`1 DisableEMVCL
+  Property: Nullable`1 AuthzOnly
+  Property: Nullable`1 ApplicationIndex
+  Property: Nullable`1 DisableDebit
+  Property: Nullable`1 AdjustToAddCharges
+  Property: Nullable`1 VerifyOnly
+  Property: Nullable`1 Voucher
+
+Type: PoyntPOSBridge.PrintedReceiptLine
+  Method: String get_Text()
+  Method: Void set_Text(String value)
+  Method: Boolean get_InvertColor()
+  Method: Void set_InvertColor(Boolean value)
+  Property: String Text
+  Property: Boolean InvertColor
+
+Type: PoyntPOSBridge.PrintedReceiptLineFont
+  Method: String get_FontSize()
+  Method: Void set_FontSize(String value)
+  Method: Boolean get_FontSpacing()
+  Method: Void set_FontSpacing(Boolean value)
+  Property: String FontSize
+  Property: Boolean FontSpacing
+
+Type: PoyntPOSBridge.PrintedReceiptSection
+  Method: List`1 get_Lines()
+  Method: Void set_Lines(List`1 value)
+  Method: PrintedReceiptLineFont get_Font()
+  Method: Void set_Font(PrintedReceiptLineFont value)
+  Property: List`1 Lines
+  Property: PrintedReceiptLineFont Font
+
+Type: PoyntPOSBridge.PrintedReceiptV2
+  Method: PrintedReceiptSection get_Header()
+  Method: Void set_Header(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_MerchantInfo()
+  Method: Void set_MerchantInfo(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Body1()
+  Method: Void set_Body1(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Body2()
+  Method: Void set_Body2(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Body3()
+  Method: Void set_Body3(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Body4()
+  Method: Void set_Body4(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Body5()
+  Method: Void set_Body5(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Body6()
+  Method: Void set_Body6(PrintedReceiptSection value)
+  Method: PrintedReceiptSection get_Footer()
+  Method: Void set_Footer(PrintedReceiptSection value)
+  Property: PrintedReceiptSection Header
+  Property: PrintedReceiptSection MerchantInfo
+  Property: PrintedReceiptSection Body1
+  Property: PrintedReceiptSection Body2
+  Property: PrintedReceiptSection Body3
+  Property: PrintedReceiptSection Body4
+  Property: PrintedReceiptSection Body5
+  Property: PrintedReceiptSection Body6
+  Property: PrintedReceiptSection Footer
+
+Type: PoyntPOSBridge.PaymentFlowState
+  Method: String get_CurrentState()
+  Method: Void set_CurrentState(String value)
+  Property: String CurrentState
+
+Type: PoyntPOSBridge.ReceiptPreference
+  Method: ReceiptType get_ReceiptType()
+  Method: Void set_ReceiptType(ReceiptType value)
+  Method: String get_Recipient()
+  Method: Void set_Recipient(String value)
+  Property: ReceiptType ReceiptType
+  Property: String Recipient
+
+Type: PoyntPOSBridge.ReceiptType
+
+Type: PoyntPOSBridge.ScanDataResponse
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: String get_Status()
+  Method: Void set_Status(String value)
+  Method: String get_ScanResult()
+  Method: Void set_ScanResult(String value)
+  Property: String PoyntRequestId
+  Property: String Status
+  Property: String ScanResult
+  Property: Dictionary`2 Error
+  Property: Boolean TimedOut
+
+Type: PoyntPOSBridge.ScanDataRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Property: String PoyntRequestId
+
+Type: PoyntPOSBridge.SecondScreenRequest
+  Method: Int32 get_TotalAmount()
+  Method: Void set_TotalAmount(Int32 value)
+  Method: String get_Currency()
+  Method: Void set_Currency(String value)
+  Method: List`1 get_Items()
+  Method: Void set_Items(List`1 value)
+  Property: Int32 TotalAmount
+  Property: String Currency
+  Property: List`1 Items
+
+Type: PoyntPOSBridge.ShowItemsOnSecondScreenRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: SecondScreenRequest get_SecondScreenRequest()
+  Method: Void set_SecondScreenRequest(SecondScreenRequest value)
+  Property: String PoyntRequestId
+  Property: Int32 Timeout
+  Property: SecondScreenRequest SecondScreenRequest
+
+Type: PoyntPOSBridge.VoiceAuthorizeSalesPayment
+  Method: String get_Currency()
+  Method: Void set_Currency(String value)
+  Method: String get_ReferenceId()
+  Method: Void set_ReferenceId(String value)
+  Method: String get_OrderId()
+  Method: Void set_OrderId(String value)
+  Method: Order get_Order()
+  Method: Void set_Order(Order value)
+  Method: Int32 get_Amount()
+  Method: Void set_Amount(Int32 value)
+  Method: Nullable`1 get_TipAmount()
+  Method: Void set_TipAmount(Nullable`1 value)
+  Method: Nullable`1 get_SkipReceiptScreen()
+  Method: Void set_SkipReceiptScreen(Nullable`1 value)
+  Method: Nullable`1 get_ManualEntry()
+  Method: Void set_ManualEntry(Nullable`1 value)
+  Method: Boolean get_OfflineAuth()
+  Method: Void set_OfflineAuth(Boolean value)
+  Method: String get_OfflineApprovalCode()
+  Method: Void set_OfflineApprovalCode(String value)
+  Method: String get_Notes()
+  Method: Void set_Notes(String value)
+  Method: List`1 get_References()
+  Method: Void set_References(List`1 value)
+  Property: String Currency
+  Property: String ReferenceId
+  Property: String OrderId
+  Property: Order Order
+  Property: Int32 Amount
+  Property: Nullable`1 TipAmount
+  Property: Nullable`1 SkipReceiptScreen
+  Property: Nullable`1 ManualEntry
+  Property: Boolean OfflineAuth
+  Property: String OfflineApprovalCode
+  Property: String Notes
+  Property: List`1 References
+
+Type: PoyntPOSBridge.VoiceAuthorizeSalesRequest
+  Method: String get_PoyntRequestId()
+  Method: Void set_PoyntRequestId(String value)
+  Method: Int32 get_Timeout()
+  Method: Void set_Timeout(Int32 value)
+  Method: VoiceAuthorizeSalesPayment get_Payment()
+  Method: Void set_Payment(VoiceAuthorizeSalesPayment value)
+  Property: String PoyntRequestId
+  Property: Int32 Timeout
+  Property: VoiceAuthorizeSalesPayment Payment
